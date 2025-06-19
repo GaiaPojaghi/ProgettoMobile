@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.delay
-import com.example.fitjourney.ui.profile.StudyViewModel
+import com.example.fitjourney.ui.viewModel.StudyViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

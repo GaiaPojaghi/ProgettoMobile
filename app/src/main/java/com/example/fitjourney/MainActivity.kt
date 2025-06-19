@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.fitjourney.ui.screens.StudyHomeScreen
 import androidx.navigation.compose.*
-import com.example.fitjourney.ui.profile.AuthViewModel
+import com.example.fitjourney.ui.viewModel.AuthViewModel
 import com.example.fitjourney.ui.screens.*
 import com.example.fitjourney.ui.theme.FitJourneyTheme
 

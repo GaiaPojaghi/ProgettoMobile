@@ -27,26 +27,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-
-// MODEL DATI
-data class StudyData(
-    val activeStudyTime: Int = 0,      // Tempo effettivo di studio attivo
-    val breakTime: Int = 0,            // Tempo di pausa
-    val totalTime: Int = 0,            // Tempo totale (studio + pausa)
-    val sessionsCompleted: Int = 0,
-    val studyGoalMinutes: Int = 180,   // Obiettivo studio: 3h al giorno (personalizzabile)
-    val breakGoalMinutes: Int = 60,    // Obiettivo pause: 1h al giorno
-    val totalGoalMinutes: Int = 480    // Obiettivo tempo totale: 8h al giorno
-) {
-    // Calcolo automatico del tempo totale
-    val calculatedTotalTime: Int
-        get() = activeStudyTime + breakTime
-
-    // Verifica se le pause sono eccessive rispetto allo studio
-    val isBreakExcessive: Boolean
-        get() = breakTime > 0 && activeStudyTime > 0 &&
-                (breakTime.toFloat() / activeStudyTime.toFloat()) > 0.5f
-}
+import com.example.fitjourney.data.StudyData
+import com.example.fitjourney.ui.viewModel.StudyViewModel
 
 data class ActivityRing(
     val title: String,
@@ -64,55 +46,6 @@ data class DailyStats(
     val icon: ImageVector,
     val color: Color
 )
-
-// VIEWMODEL
-class StudyViewModel : ViewModel() {
-    private val _studyData = mutableStateOf(StudyData())
-    val studyData: State<StudyData> = _studyData
-
-    fun simulateStudySession() {
-        _studyData.value = _studyData.value.copy(
-            activeStudyTime = _studyData.value.activeStudyTime + 25,
-            sessionsCompleted = _studyData.value.sessionsCompleted + 1
-        )
-    }
-
-    fun simulateBreak() {
-        _studyData.value = _studyData.value.copy(
-            breakTime = _studyData.value.breakTime + 5
-        )
-    }
-
-    fun simulateProgress() {
-        // Simula una progressione realistica
-        _studyData.value = _studyData.value.copy(
-            activeStudyTime = _studyData.value.activeStudyTime + 25,
-            breakTime = _studyData.value.breakTime + 8,
-            sessionsCompleted = _studyData.value.sessionsCompleted + 1
-        )
-    }
-
-    // Nuova funzione per aggiornare l'obiettivo di studio
-    fun updateStudyGoal(newGoalMinutes: Int) {
-        _studyData.value = _studyData.value.copy(
-            studyGoalMinutes = newGoalMinutes.coerceIn(15, 720) // Min 15 min, Max 12 ore
-        )
-    }
-
-    // Funzione per aggiornare l'obiettivo delle pause (opzionale)
-    fun updateBreakGoal(newGoalMinutes: Int) {
-        _studyData.value = _studyData.value.copy(
-            breakGoalMinutes = newGoalMinutes.coerceIn(5, 240) // Min 5 min, Max 4 ore
-        )
-    }
-
-    // Funzione per aggiornare l'obiettivo totale (opzionale)
-    fun updateTotalGoal(newGoalMinutes: Int) {
-        _studyData.value = _studyData.value.copy(
-            totalGoalMinutes = newGoalMinutes.coerceIn(60, 960) // Min 1 ora, Max 16 ore
-        )
-    }
-}
 
 // Dialog per impostare l'obiettivo
 @OptIn(ExperimentalMaterial3Api::class)

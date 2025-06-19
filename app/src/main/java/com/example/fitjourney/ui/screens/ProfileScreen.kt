@@ -36,7 +36,7 @@ import androidx.core.content.FileProvider
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.fitjourney.data.UserData
-import com.example.fitjourney.ui.profile.AuthViewModel
+import com.example.fitjourney.ui.viewModel.AuthViewModel
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
