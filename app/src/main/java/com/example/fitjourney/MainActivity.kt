@@ -23,6 +23,8 @@ import com.example.fitjourney.ui.viewModel.AuthViewModel
 import com.example.fitjourney.ui.screens.*
 import com.example.fitjourney.ui.theme.FitJourneyTheme
 import com.example.fitjourney.ui.viewModel.StudyViewModel
+import com.example.fitjourney.utils.GoogleAuthHelper
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,18 +32,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             FitJourneyTheme {
                 val authViewModel = remember { AuthViewModel() }
-                FitJourneyApp(authViewModel)
+                val studyViewModel = remember { StudyViewModel() }
+                val googleSignInClient = GoogleAuthHelper.getGoogleSignInClient(this)
+
+                FitJourneyApp(
+                    authViewModel = authViewModel,
+                    studyViewModel = studyViewModel,
+                    googleSignInClient = googleSignInClient
+                )
             }
         }
     }
 }
 
 @Composable
-fun FitJourneyApp(viewModel: AuthViewModel) {
+fun FitJourneyApp(
+    authViewModel: AuthViewModel,
+    studyViewModel: StudyViewModel,
+    googleSignInClient: GoogleSignInClient
+) {
     val navController = rememberNavController()
-    val studyViewModel = remember { StudyViewModel() }
-
-    // Osserva i cambiamenti nei dati di studio per il badge
     val studyData by studyViewModel.studyData
 
     val items = listOf(
@@ -60,8 +70,6 @@ fun FitJourneyApp(viewModel: AuthViewModel) {
                         icon = {
                             Box {
                                 Icon(item.icon, contentDescription = item.label)
-
-                                // Mostra il badge rosso solo sull'icona "Medaglie" se c'è una nuova medaglia
                                 if (item.route == "rewards" && studyData.newMedalUnlocked) {
                                     Box(
                                         modifier = Modifier
@@ -92,13 +100,48 @@ fun FitJourneyApp(viewModel: AuthViewModel) {
             startDestination = "home",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("home") { StudyHomeScreen(navController, studyViewModel) } // Passa anche qui il ViewModel
-            composable("studySession") { StudySessionScreen(navController, studyViewModel) } // E qui
-            composable("weekly") { WeeklyDataScreen() }
-            composable("rewards") { RewardsScreen(viewModel = studyViewModel) }
-            composable("profile") { ProfileScreen(navController, viewModel) }
-            composable("login") { LoginScreen(navController, viewModel) }
-            composable("register") { RegisterForm(navController, viewModel) }
+            composable("home") {
+                StudyHomeScreen(
+                    navController = navController,
+                    viewModel = studyViewModel
+                )
+            }
+            composable("studySession") {
+                StudySessionScreen(
+                    navController = navController,
+                    viewModel = studyViewModel
+                )
+            }
+            composable("weekly") {
+                WeeklyDataScreen(
+                    viewModel = studyViewModel
+                )
+            }
+            composable("rewards") {
+                RewardsScreen(
+                    viewModel = studyViewModel
+                )
+            }
+            composable("profile") {
+                ProfileScreen(
+                    navController = navController,
+                    viewModel = authViewModel
+                )
+            }
+            composable("login") {
+                LoginScreen(
+                    navController = navController,
+                    viewModel = authViewModel,
+                    googleSignInClient = googleSignInClient
+                )
+            }
+            composable("register") {
+                RegisterForm(
+                    navController = navController,
+                    viewModel = authViewModel,
+                    googleSignInClient = googleSignInClient
+                )
+            }
         }
     }
 }

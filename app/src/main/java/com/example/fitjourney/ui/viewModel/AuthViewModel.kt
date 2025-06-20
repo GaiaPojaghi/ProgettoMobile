@@ -7,10 +7,15 @@ import android.util.Log
 import java.io.File
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
+import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 class AuthViewModel : BaseViewModel() {
 
     val userData = mutableStateOf(UserData())
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
     fun isLoggedIn(): Boolean = isUserLoggedIn()
 
@@ -27,6 +32,7 @@ class AuthViewModel : BaseViewModel() {
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
+        _isLoading.value = true
         auth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener { result ->
                 val userId = result.user?.uid
@@ -45,14 +51,22 @@ class AuthViewModel : BaseViewModel() {
                         .set(userDataMap)
                         .addOnSuccessListener {
                             loadUserData()
+                            _isLoading.value = false
                             onSuccess()
                         }
-                        .addOnFailureListener(onFailure)
+                        .addOnFailureListener {
+                            _isLoading.value = false
+                            onFailure(it)
+                        }
                 } else {
+                    _isLoading.value = false
                     onSuccess()
                 }
             }
-            .addOnFailureListener(onFailure)
+            .addOnFailureListener {
+                _isLoading.value = false
+                onFailure(it)
+            }
     }
 
     fun login(
@@ -61,12 +75,17 @@ class AuthViewModel : BaseViewModel() {
         onSuccess: () -> Unit,
         onFailure: (Exception) -> Unit
     ) {
+        _isLoading.value = true
         auth.signInWithEmailAndPassword(email, password)
             .addOnSuccessListener {
                 loadUserData()
+                _isLoading.value = false
                 onSuccess()
             }
-            .addOnFailureListener(onFailure)
+            .addOnFailureListener {
+                _isLoading.value = false
+                onFailure(it)
+            }
     }
 
     fun loadUserData() {
@@ -91,6 +110,11 @@ class AuthViewModel : BaseViewModel() {
                         userData.value = newUserData
                     } else {
                         Log.d("AuthViewModel", "Document does not exist")
+                        // Se il documento non esiste per un utente Google, crealo con i dati di base
+                        val user = auth.currentUser
+                        if (user != null && user.providerData.any { it.providerId == GoogleAuthProvider.PROVIDER_ID }) {
+                            createGoogleUserProfile(user.email ?: "", user.displayName ?: "")
+                        }
                     }
                 }
                 .addOnFailureListener {
@@ -98,6 +122,44 @@ class AuthViewModel : BaseViewModel() {
                 }
         } else {
             Log.e("AuthViewModel", "User ID is null")
+        }
+    }
+
+    private fun createGoogleUserProfile(email: String, displayName: String) {
+        val userId = getCurrentUserId()
+        if (userId != null) {
+            val nameParts = displayName.split(" ")
+            val nome = nameParts.firstOrNull() ?: ""
+            val cognome = if (nameParts.size > 1) nameParts.drop(1).joinToString(" ") else ""
+
+            val userDataMap = hashMapOf(
+                "nome" to nome,
+                "cognome" to cognome,
+                "dataNascita" to "",
+                "email" to email,
+                "telefono" to "",
+                "sesso" to "",
+                "photoUrl" to (auth.currentUser?.photoUrl?.toString() ?: "")
+            )
+
+            firestore.collection("users").document(userId)
+                .set(userDataMap)
+                .addOnSuccessListener {
+                    val newUserData = UserData(
+                        nome = nome,
+                        cognome = cognome,
+                        dataNascita = "",
+                        email = email,
+                        telefono = "",
+                        sesso = "",
+                        photoUrl = auth.currentUser?.photoUrl?.toString() ?: ""
+                    )
+                    userData.value = newUserData
+                    Log.d("AuthViewModel", "Google user profile created successfully")
+                }
+                .addOnFailureListener {
+                    Log.e("AuthViewModel", "Error creating Google user profile", it)
+                }
         }
     }
 
@@ -212,5 +274,27 @@ class AuthViewModel : BaseViewModel() {
     fun logout() {
         auth.signOut()
         userData.value = UserData()
+    }
+
+    fun signInWithGoogle(
+        idToken: String,
+        onSuccess: () -> Unit,
+        onFailure: (Exception) -> Unit
+    ) {
+        _isLoading.value = true
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+
+        auth.signInWithCredential(credential)
+            .addOnCompleteListener { task ->
+                _isLoading.value = false
+                if (task.isSuccessful) {
+                    Log.d("AuthViewModel", "Google sign-in successful")
+                    // Non chiamare loadUserData() qui, sarà chiamato nel callback onSuccess
+                    onSuccess()
+                } else {
+                    Log.e("AuthViewModel", "Google sign-in failed", task.exception)
+                    onFailure(task.exception ?: Exception("Errore sconosciuto durante l'accesso Google"))
+                }
+            }
     }
 }
