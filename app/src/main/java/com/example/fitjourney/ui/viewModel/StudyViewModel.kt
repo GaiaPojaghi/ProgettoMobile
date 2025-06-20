@@ -108,7 +108,7 @@ class StudyViewModel : BaseViewModel() {
             }
     }
 
-    private fun loadStudyData() {
+    fun loadStudyData() {
         val userId = getCurrentUserId() ?: return
         val date = getTodayDateString()
 
@@ -138,4 +138,13 @@ class StudyViewModel : BaseViewModel() {
                 println("Errore caricamento dati studio: ${e.message}")
             }
     }
+
+    fun addLiveBreakTime(minutes: Int) {
+        if (minutes <= 0) return
+        _studyData.value = _studyData.value.copy(
+            breakTime = _studyData.value.breakTime + minutes
+        )
+        saveStudyData()
+    }
+
 }
