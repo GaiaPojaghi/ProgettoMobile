@@ -67,7 +67,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
     // Aggiorna editedUserData quando userData cambia
     LaunchedEffect(userData) {
         editedUserData = userData
-        // Non resettare isEditing qui automaticamente
     }
 
     // Funzione per salvare l'immagine permanentemente

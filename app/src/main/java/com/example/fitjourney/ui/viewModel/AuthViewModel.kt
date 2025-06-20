@@ -72,10 +72,12 @@ class AuthViewModel : BaseViewModel() {
     fun loadUserData() {
         val userId = getCurrentUserId()
         if (userId != null) {
+            Log.d("AuthViewModel", "Loading user data for userId: $userId")
             firestore.collection("users").document(userId)
                 .get()
                 .addOnSuccessListener { document ->
                     if (document.exists()) {
+                        Log.d("AuthViewModel", "Document exists: ${document.data}")
                         val newUserData = UserData(
                             nome = document.getString("nome") ?: "",
                             cognome = document.getString("cognome") ?: "",
@@ -85,12 +87,17 @@ class AuthViewModel : BaseViewModel() {
                             sesso = document.getString("sesso") ?: "",
                             photoUrl = document.getString("photoUrl") ?: ""
                         )
+                        Log.d("AuthViewModel", "New user data: $newUserData")
                         userData.value = newUserData
+                    } else {
+                        Log.d("AuthViewModel", "Document does not exist")
                     }
                 }
                 .addOnFailureListener {
-                    Log.e("AuthViewModel", "Errore nel caricamento dati utente", it)
+                    Log.e("AuthViewModel", "Error loading user data", it)
                 }
+        } else {
+            Log.e("AuthViewModel", "User ID is null")
         }
     }
 
