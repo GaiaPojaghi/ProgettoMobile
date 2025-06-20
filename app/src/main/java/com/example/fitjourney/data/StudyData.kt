@@ -14,7 +14,8 @@ data class StudyData(
     val breakGoalMinutes: Int = 60,    // Obiettivo pause in minuti (default 1 ora)
     val totalGoalMinutes: Int = 480,   // Obiettivo tempo totale in minuti (default 8 ore)
     val lastUpdated: String = "",      // Timestamp ultimo aggiornamento (stringa ISO o simile)
-    val isTemporary: Boolean = false   // Flag che indica se i dati sono temporanei (es. utente non loggato)
+    val isTemporary: Boolean = false,   // Flag che indica se i dati sono temporanei (es. utente non loggato)
+    val newMedalUnlocked: Boolean = false // Flag che indica se ci sono state nuove medaglie sbloccate
 ) {
     /**
      * Tempo totale calcolato come somma di studio attivo + pausa.
@@ -30,4 +31,13 @@ data class StudyData(
     val isBreakExcessive: Boolean
         get() = breakTime > 0 && activeStudyTime > 0 &&
                 (breakTime.toFloat() / activeStudyTime.toFloat()) > 0.5f
+
+    val studyProgress: Float
+        get() = if (studyGoalMinutes > 0) (activeStudyTime.toFloat() / studyGoalMinutes).coerceAtMost(1f) else 0f
+
+    val breakProgress: Float
+        get() = if (breakGoalMinutes > 0) (breakTime.toFloat() / breakGoalMinutes).coerceAtMost(1f) else 0f
+
+    val totalProgress: Float
+        get() = if (totalGoalMinutes > 0) (calculatedTotalTime.toFloat() / totalGoalMinutes).coerceAtMost(1f) else 0f
 }

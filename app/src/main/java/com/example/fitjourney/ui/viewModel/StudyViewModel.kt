@@ -11,33 +11,46 @@ import java.util.Locale
 class StudyViewModel : BaseViewModel() {
 
     private val _studyData = mutableStateOf(StudyData())
+    private var previousUnlockedMedals = mutableSetOf<String>()
+    private var previousStudyData = StudyData()
     val studyData: State<StudyData> = _studyData
 
     init {
         loadStudyData()
     }
 
+    private fun updateStudyData(newData: StudyData) {
+        previousStudyData = _studyData.value // Salva lo stato corrente come precedente
+        _studyData.value = newData
+    }
+
     fun simulateStudySession() {
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             activeStudyTime = _studyData.value.activeStudyTime + 25,
             sessionsCompleted = _studyData.value.sessionsCompleted + 1
         )
+        updateStudyData(newData)
+        checkForNewMedals()
         saveStudyData()
     }
 
     fun simulateBreak() {
+        val oldData = _studyData.value
         _studyData.value = _studyData.value.copy(
             breakTime = _studyData.value.breakTime + 5
         )
+        checkForNewMedals()
         saveStudyData()
     }
 
     fun simulateProgress() {
+        val oldData = _studyData.value
         _studyData.value = _studyData.value.copy(
             activeStudyTime = _studyData.value.activeStudyTime + 25,
             breakTime = _studyData.value.breakTime + 8,
             sessionsCompleted = _studyData.value.sessionsCompleted + 1
         )
+        checkForNewMedals()
         saveStudyData()
     }
 
@@ -64,17 +77,47 @@ class StudyViewModel : BaseViewModel() {
 
     fun addLiveStudyTime(minutes: Int) {
         if (minutes <= 0) return
+        val oldData = _studyData.value
         _studyData.value = _studyData.value.copy(
             activeStudyTime = _studyData.value.activeStudyTime + minutes
         )
+        checkForNewMedals()
         saveStudyData()
     }
 
     fun incrementSessionCount() {
+        val oldData = _studyData.value
         _studyData.value = _studyData.value.copy(
             sessionsCompleted = _studyData.value.sessionsCompleted + 1
         )
+        checkForNewMedals()
         saveStudyData()
+    }
+
+    fun addLiveBreakTime(minutes: Int) {
+        if (minutes <= 0) return
+        val oldData = _studyData.value
+        _studyData.value = _studyData.value.copy(
+            breakTime = _studyData.value.breakTime + minutes
+        )
+        checkForNewMedals()
+        saveStudyData()
+    }
+
+    // Funzione per controllare se sono state sbloccate nuove medaglie
+    private fun checkForNewMedals() {
+        val oldUnlocked = calculateUnlockedMedals(previousStudyData)
+        val newUnlocked = calculateUnlockedMedals(_studyData.value)
+
+        if (newUnlocked.size > oldUnlocked.size) {
+            _studyData.value = _studyData.value.copy(newMedalUnlocked = true)
+        }
+    }
+
+    fun getNewlyUnlockedMedals(): Set<String> {
+        val oldUnlocked = calculateUnlockedMedals(previousStudyData)
+        val newUnlocked = calculateUnlockedMedals(_studyData.value)
+        return newUnlocked - oldUnlocked
     }
 
     private fun saveStudyData() {
@@ -92,7 +135,8 @@ class StudyViewModel : BaseViewModel() {
             "breakGoalMinutes" to data.breakGoalMinutes,
             "totalGoalMinutes" to data.totalGoalMinutes,
             "lastUpdated" to data.lastUpdated,
-            "isTemporary" to data.isTemporary
+            "isTemporary" to data.isTemporary,
+            "newMedalUnlocked" to data.newMedalUnlocked
         )
 
         firestore.collection("users")
@@ -128,10 +172,14 @@ class StudyViewModel : BaseViewModel() {
                         breakGoalMinutes = document.getLong("breakGoalMinutes")?.toInt() ?: 60,
                         totalGoalMinutes = document.getLong("totalGoalMinutes")?.toInt() ?: 480,
                         lastUpdated = document.getString("lastUpdated") ?: "",
-                        isTemporary = document.getBoolean("isTemporary") ?: false
+                        isTemporary = document.getBoolean("isTemporary") ?: false,
+                        newMedalUnlocked = document.getBoolean("newMedalUnlocked") ?: false
                     )
                     _studyData.value = loadedData
                     println("Dati studio caricati per $date")
+                } else {
+                    // Se non esistono dati per oggi, inizializza con valori predefiniti
+                    _studyData.value = StudyData()
                 }
             }
             .addOnFailureListener { e ->
@@ -139,12 +187,44 @@ class StudyViewModel : BaseViewModel() {
             }
     }
 
-    fun addLiveBreakTime(minutes: Int) {
-        if (minutes <= 0) return
-        _studyData.value = _studyData.value.copy(
-            breakTime = _studyData.value.breakTime + minutes
-        )
-        saveStudyData()
+    fun resetNewMedalStatus() {
+        _studyData.value = _studyData.value.copy(newMedalUnlocked = false)
+        saveStudyData() // Salva lo stato aggiornato
     }
 
+    // Funzione per calcolare quali medaglie sono sbloccate in base ai dati forniti
+    private fun calculateUnlockedMedals(data: StudyData): Set<String> {
+        val unlocked = mutableSetOf<String>()
+
+        // Prima sessione
+        if (data.sessionsCompleted >= 1) unlocked += "first_study"
+
+        // Tempo di studio
+        if (data.activeStudyTime >= 30) unlocked += "study_30min"
+        if (data.activeStudyTime >= 120) unlocked += "study_2h"
+        if (data.activeStudyTime >= 300) unlocked += "study_5h"
+        if (data.activeStudyTime >= 600) unlocked += "study_10h"
+
+        // Sessioni completate
+        if (data.sessionsCompleted >= 5) unlocked += "sessions_5"
+        if (data.sessionsCompleted >= 10) unlocked += "sessions_10"
+        if (data.sessionsCompleted >= 25) unlocked += "sessions_25"
+        if (data.sessionsCompleted >= 50) unlocked += "sessions_50"
+
+        // Medaglie speciali
+        if (data.sessionsCompleted >= 1) unlocked += "focus_master"
+        if (data.activeStudyTime >= 120 && data.breakTime >= 30) unlocked += "balanced_study"
+
+        return unlocked
+    }
+
+    // Funzione helper per ottenere il conteggio delle medaglie sbloccate
+    fun getUnlockedMedalsCount(): Int {
+        return calculateUnlockedMedals(_studyData.value).size
+    }
+
+    // Funzione helper per controllare se una specifica medaglia è sbloccata
+    fun isMedalUnlocked(medalId: String): Boolean {
+        return calculateUnlockedMedals(_studyData.value).contains(medalId)
+    }
 }

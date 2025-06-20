@@ -88,7 +88,7 @@ fun StudySessionScreen(navController: NavController, viewModel: StudyViewModel =
                     Text(
                         "Sessione di Studio",
                         fontSize = 22.sp,
-                        color = Color.White // ⬅️ Titolo bianco
+                        color = Color.White
                     )
                 },
                 navigationIcon = {

@@ -1,8 +1,10 @@
 package com.example.fitjourney.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,92 +22,179 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.fitjourney.ui.viewModel.StudyViewModel
+import kotlinx.coroutines.delay
+
+enum class AchievementCategory(val displayName: String) {
+    STUDY_TIME("Tempo di studio"),
+    SESSIONS("Sessioni"),
+    SPECIAL("Medaglie speciali")
+}
+
+enum class AchievementDifficulty(val displayName: String, val color: Color) {
+    EASY("Facile", Color(0xFF2E7D32)),       // Verde scuro
+    MEDIUM("Medio", Color(0xFFF57C00)),     // Arancione scuro
+    HARD("Difficile", Color(0xFFD84315)),    // Rosso scuro/arancione intenso
+    EXTREME("Estremo", Color(0xFF6A1B9A))   // Viola scuro
+}
+
+enum class FilterType { ALL, UNLOCKED, LOCKED }
 
 data class Achievement(
     val id: String,
     val title: String,
     val description: String,
+    val detailedDescription: String,
+    val tips: String,
     val icon: ImageVector,
     val requirement: Int,
     val color: Color,
-    val category: AchievementCategory
+    val category: AchievementCategory,
+    val difficulty: AchievementDifficulty
 )
-
-enum class AchievementCategory {
-    STUDY_TIME, SESSIONS, CONSISTENCY, SPECIAL
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
     val studyData by viewModel.studyData
+    var selectedFilter by remember { mutableStateOf(FilterType.ALL) }
+    var selectedCategory by remember { mutableStateOf<AchievementCategory?>(null) }
+    var showAchievementDialog by remember { mutableStateOf<Achievement?>(null) }
+    var newUnlockedAchievement by remember { mutableStateOf<Achievement?>(null) }
 
-    // Ricarica i dati ogni volta che la pagina viene aperta
+    val achievements = remember {
+        listOf(
+            // Tempo di Studio
+            Achievement("first_study", "Prima Sessione", "Completare 1 sessione di studio",
+                "Avvia il timer e completa la tua prima sessione. Ottimo inizio!",
+                "Parti con sessioni brevi (15-25 min).",
+                Icons.Default.Star, 1, Color(0xFFFFD700), AchievementCategory.STUDY_TIME, AchievementDifficulty.EASY),
+            Achievement("study_30min", "Studiatore Principiante", "Studiare per 30 minuti in totale",
+                "Accumula 30 minuti di studio (anche su più sessioni).",
+                "Crea una routine giornaliera.",
+                Icons.Default.MenuBook, 30, Color(0xFF4CAF50), AchievementCategory.STUDY_TIME, AchievementDifficulty.EASY),
+            Achievement("study_2h", "Studente Dedicato", "Studiare per 2 ore (120 minuti) in totale",
+                "Accumula 120 minuti di studio.",
+                "Usa la tecnica del pomodoro (25/5).",
+                Icons.Default.School, 120, Color(0xFF2196F3), AchievementCategory.STUDY_TIME, AchievementDifficulty.MEDIUM),
+            Achievement("study_5h", "Maratoneta dello Studio", "Studiare per 5 ore (300 minuti) in totale",
+                "Accumula 300 minuti di studio.",
+                "Fai pause regolari e idratati.",
+                Icons.Default.EmojiEvents, 300, Color(0xFF9C27B0), AchievementCategory.STUDY_TIME, AchievementDifficulty.HARD),
+            Achievement("study_10h", "Maestro della Concentrazione", "Studiare per 10 ore (600 minuti) in totale",
+                "Accumula 600 minuti di studio - la medaglia più difficile per il tempo!",
+                "Mantieni un equilibrio sano tra studio, sonno e attività fisica.",
+                Icons.Default.Psychology, 600, Color(0xFFFF5722), AchievementCategory.STUDY_TIME, AchievementDifficulty.EXTREME),
+
+            // Sessioni Completate
+            Achievement("sessions_5", "Costanza", "Completare 5 sessioni di studio",
+                "Porta a termine 5 sessioni (anche brevi).",
+                "Sessioni regolari sono più efficaci di rare e lunghe.",
+                Icons.Default.CheckCircle, 5, Color(0xFF4CAF50), AchievementCategory.SESSIONS, AchievementDifficulty.EASY),
+            Achievement("sessions_10", "Determinazione", "Completare 10 sessioni di studio",
+                "Porta a termine 10 sessioni totali.",
+                "Tieni traccia dei progressi per motivarti.",
+                Icons.Default.Timeline, 10, Color(0xFF2196F3), AchievementCategory.SESSIONS, AchievementDifficulty.MEDIUM),
+            Achievement("sessions_25", "Perseveranza", "Completare 25 sessioni di studio",
+                "Porta a termine 25 sessioni - richiede costanza nel tempo.",
+                "Varia gli argomenti di studio per mantenere alta la motivazione.",
+                Icons.Default.TrendingUp, 25, Color(0xFF9C27B0), AchievementCategory.SESSIONS, AchievementDifficulty.HARD),
+            Achievement("sessions_50", "Campione di Disciplina", "Completare 50 sessioni di studio",
+                "La medaglia più difficile per numero di sessioni!",
+                "Celebra questo traguardo eccezionale!",
+                Icons.Default.EmojiEvents, 50, Color(0xFFFF9800), AchievementCategory.SESSIONS, AchievementDifficulty.EXTREME),
+
+            // Medaglie Speciali
+            Achievement("focus_master", "Maestro del Focus", "Completare almeno 1 sessione",
+                "Completa una sessione di studio con focus totale.",
+                "Elimina tutte le distrazioni durante la sessione.",
+                Icons.Default.Visibility, 1, Color(0xFF3F51B5), AchievementCategory.SPECIAL, AchievementDifficulty.EASY),
+            Achievement("balanced_study", "Equilibrio Perfetto", "Studiare per almeno 2 ore con pause equilibrate",
+                "Accumula almeno 120 minuti di studio e 30 minuti di pause totali.",
+                "Bilancia studio e riposo per massima efficacia.",
+                Icons.Default.Balance, 1, Color(0xFFE91E63), AchievementCategory.SPECIAL, AchievementDifficulty.MEDIUM)
+        )
+    }
+
+    fun isAchievementUnlocked(a: Achievement): Boolean = when (a.category) {
+        AchievementCategory.STUDY_TIME -> studyData.activeStudyTime >= a.requirement
+        AchievementCategory.SESSIONS -> studyData.sessionsCompleted >= a.requirement
+        AchievementCategory.SPECIAL -> when (a.id) {
+            "balanced_study" -> studyData.activeStudyTime >= 120 && studyData.breakTime >= 30
+            "focus_master" -> studyData.sessionsCompleted >= 1
+            else -> false
+        }
+        else -> false
+    }
+
+    // Carica i dati dello studio
     LaunchedEffect(Unit) {
         viewModel.loadStudyData()
     }
 
-    val achievements = remember {
-        listOf(
-            // Studio - Tempo
-            Achievement("first_study", "Prima Sessione", "Completa la tua prima sessione di studio", Icons.Default.Star, 1, Color(0xFFFFD700), AchievementCategory.STUDY_TIME),
-            Achievement("study_30min", "Studiatore Principiante", "Studia per 30 minuti in totale", Icons.Default.MenuBook, 30, Color(0xFF4CAF50), AchievementCategory.STUDY_TIME),
-            Achievement("study_2h", "Studente Dedicato", "Studia per 2 ore in totale", Icons.Default.School, 120, Color(0xFF2196F3), AchievementCategory.STUDY_TIME),
-            Achievement("study_5h", "Maratoneta dello Studio", "Studia per 5 ore in totale", Icons.Default.EmojiEvents, 300, Color(0xFF9C27B0), AchievementCategory.STUDY_TIME),
-            Achievement("study_10h", "Maestro della Concentrazione", "Studia per 10 ore in totale", Icons.Default.Psychology, 600, Color(0xFFFF5722), AchievementCategory.STUDY_TIME),
-
-            // Sessioni
-            Achievement("sessions_5", "Costanza", "Completa 5 sessioni di studio", Icons.Default.CheckCircle, 5, Color(0xFF4CAF50), AchievementCategory.SESSIONS),
-            Achievement("sessions_10", "Determinazione", "Completa 10 sessioni di studio", Icons.Default.Timeline, 10, Color(0xFF2196F3), AchievementCategory.SESSIONS),
-            Achievement("sessions_25", "Perseveranza", "Completa 25 sessioni di studio", Icons.Default.TrendingUp, 25, Color(0xFF9C27B0), AchievementCategory.SESSIONS),
-            Achievement("sessions_50", "Campione di Disciplina", "Completa 50 sessioni di studio", Icons.Default.EmojiEvents, 50, Color(0xFFFF9800), AchievementCategory.SESSIONS),
-
-            // Speciali
-            Achievement("balanced_study", "Equilibrio Perfetto", "Studia per almeno 2 ore con pause equilibrate", Icons.Default.Balance, 1, Color(0xFFE91E63), AchievementCategory.SPECIAL),
-            Achievement("focus_master", "Maestro del Focus", "Completa una sessione da 25 minuti senza pause", Icons.Default.Visibility, 1, Color(0xFF3F51B5), AchievementCategory.SPECIAL)
-        )
-    }
-
-    fun isAchievementUnlocked(achievement: Achievement): Boolean {
-        return when (achievement.category) {
-            AchievementCategory.STUDY_TIME -> studyData.activeStudyTime >= achievement.requirement
-            AchievementCategory.SESSIONS -> studyData.sessionsCompleted >= achievement.requirement
-            AchievementCategory.SPECIAL -> {
-                when (achievement.id) {
-                    "balanced_study" -> studyData.activeStudyTime >= 120 && studyData.breakTime >= 30
-                    "focus_master" -> studyData.sessionsCompleted >= 1 // Semplificato per demo
-                    else -> false
-                }
+    // Gestisce il popup celebrativo per nuove medaglie
+    LaunchedEffect(studyData.newMedalUnlocked) {
+        if (studyData.newMedalUnlocked) {
+            // Trova l'ultima medaglia sbloccata per mostrarla
+            val lastUnlocked = achievements.lastOrNull { isAchievementUnlocked(it) }
+            if (lastUnlocked != null) {
+                delay(500) // Piccola attesa per l'animazione
+                newUnlockedAchievement = lastUnlocked
+                // Reset del badge DOPO aver mostrato il popup
+                viewModel.resetNewMedalStatus()
             }
-            else -> false
         }
     }
 
-    fun getProgress(achievement: Achievement): Float {
-        val current = when (achievement.category) {
+    fun getProgress(a: Achievement): Float {
+        val value = when (a.category) {
             AchievementCategory.STUDY_TIME -> studyData.activeStudyTime
             AchievementCategory.SESSIONS -> studyData.sessionsCompleted
-            AchievementCategory.SPECIAL -> if (isAchievementUnlocked(achievement)) achievement.requirement else 0
+            AchievementCategory.SPECIAL -> if (isAchievementUnlocked(a)) a.requirement else 0
             else -> 0
         }
-        return (current.toFloat() / achievement.requirement).coerceAtMost(1f)
+        return (value.toFloat() / a.requirement).coerceAtMost(1f)
     }
+
+    // Filtra medaglie in base a filtri e categoria
+    val filteredAchievements = achievements.filter {
+        val unlocked = isAchievementUnlocked(it)
+        val matchesFilter = when (selectedFilter) {
+            FilterType.ALL -> true
+            FilterType.UNLOCKED -> unlocked
+            FilterType.LOCKED -> !unlocked
+        }
+        val matchesCategory = selectedCategory?.let { cat -> it.category == cat } ?: true
+        matchesFilter && matchesCategory
+    }
+
+    // Raggruppa per categoria (solo quelle filtrate)
+    val groupedAchievements = filteredAchievements.groupBy { it.category }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "🏆  Medaglie e Obiettivi",
-                        fontSize = 22.sp,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "Medaglie e Obiettivi",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = Color(0xFF283593),
+                    titleContentColor = Color.White,
+                    navigationIconContentColor = Color.White
                 )
             )
         }
@@ -117,94 +206,168 @@ fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header con statistiche
+            // Statistiche
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                ) {
+                Card {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            "I tuoi Progressi",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-
+                        Text("I tuoi progressi", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "${studyData.activeStudyTime}",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text("Minuti studiati", fontSize = 12.sp)
+                            @Composable
+                            fun Stat(title: String, value: String) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                    Text(title, fontSize = 12.sp)
+                                }
                             }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    "${studyData.sessionsCompleted}",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text("Sessioni", fontSize = 12.sp)
-                            }
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                val unlockedCount = achievements.count { isAchievementUnlocked(it) }
-                                Text(
-                                    "$unlockedCount/${achievements.size}",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text("Medaglie", fontSize = 12.sp)
-                            }
+                            Stat("Minuti studiati", "${studyData.activeStudyTime}")
+                            Stat("Sessioni", "${studyData.sessionsCompleted}")
+                            Stat("Medaglie", "${achievements.count { isAchievementUnlocked(it) }}/${achievements.size}")
                         }
                     }
                 }
             }
 
-            // Sezioni per categoria
-            val groupedAchievements = achievements.groupBy { it.category }
-
-            items(groupedAchievements.keys.toList()) { category ->
-                val categoryAchievements = groupedAchievements[category] ?: emptyList()
-                val categoryTitle = when (category) {
-                    AchievementCategory.STUDY_TIME -> "⏱️ Tempo di Studio"
-                    AchievementCategory.SESSIONS -> "📚 Sessioni Completate"
-                    AchievementCategory.CONSISTENCY -> "🔥 Costanza"
-                    AchievementCategory.SPECIAL -> "✨ Obiettivi Speciali"
-                }
-
-                Column {
-                    Text(
-                        categoryTitle,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 8.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    categoryAchievements.forEach { achievement ->
-                        AchievementCard(
-                            achievement = achievement,
-                            isUnlocked = isAchievementUnlocked(achievement),
-                            progress = getProgress(achievement)
+            // Filtri stato
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(FilterType.values()) { filter ->
+                        FilterChip(
+                            onClick = { selectedFilter = filter },
+                            selected = selectedFilter == filter,
+                            label = {
+                                Text(
+                                    when (filter) {
+                                        FilterType.ALL -> "Tutte"
+                                        FilterType.UNLOCKED -> "Ottenute"
+                                        FilterType.LOCKED -> "Da ottenere"
+                                    }
+                                )
+                            }
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                // Filtri categoria
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            onClick = { selectedCategory = null },
+                            selected = selectedCategory == null,
+                            label = { Text("Tutte le categorie") }
+                        )
+                    }
+                    items(AchievementCategory.values()) { category ->
+                        FilterChip(
+                            onClick = {
+                                selectedCategory = if (selectedCategory == category) null else category
+                            },
+                            selected = selectedCategory == category,
+                            label = { Text(category.displayName) }
+                        )
                     }
                 }
             }
+
+            // Se non è selezionata nessuna categoria (Tutte le categorie),
+            // mostra i titoli di categoria prima del gruppo corrispondente
+            if (selectedCategory == null) {
+                groupedAchievements.forEach { (category, achievementsInCategory) ->
+                    item {
+                        Text(
+                            category.displayName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                    items(achievementsInCategory) { achievement ->
+                        AchievementCard(
+                            achievement = achievement,
+                            isUnlocked = isAchievementUnlocked(achievement),
+                            progress = getProgress(achievement),
+                            onClick = { showAchievementDialog = achievement }
+                        )
+                    }
+                }
+            } else {
+                // Se è selezionata una categoria, mostra solo le medaglie filtrate senza titoli
+                items(filteredAchievements) { achievement ->
+                    AchievementCard(
+                        achievement = achievement,
+                        isUnlocked = isAchievementUnlocked(achievement),
+                        progress = getProgress(achievement),
+                        onClick = { showAchievementDialog = achievement }
+                    )
+                }
+            }
+
+            if (filteredAchievements.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.SearchOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Nessuna medaglia trovata",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                "Prova a cambiare i filtri",
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Dialog dettagli medaglia
+        LaunchedEffect(studyData.newMedalUnlocked) {
+            if (studyData.newMedalUnlocked) {
+                // Trova tutte le medaglie appena sbloccate
+                val newlyUnlockedIds = viewModel.getNewlyUnlockedMedals()
+                if (newlyUnlockedIds.isNotEmpty()) {
+                    // Prendi la prima medaglia appena sbloccata
+                    val firstNewAchievement = achievements.firstOrNull { it.id == newlyUnlockedIds.first() }
+                    if (firstNewAchievement != null) {
+                        delay(500) // Piccola attesa per l'animazione
+                        newUnlockedAchievement = firstNewAchievement
+                        // Reset del badge DOPO aver mostrato il popup
+                        viewModel.resetNewMedalStatus()
+                    }
+                }
+            }
+        }
+        // Popup celebrativo per nuove medagliE
+        newUnlockedAchievement?.let { achievement ->
+            ConfettiCelebration(
+                achievement = achievement,
+                onDismiss = { newUnlockedAchievement = null }
+            )
         }
     }
 }
@@ -213,88 +376,77 @@ fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
 fun AchievementCard(
     achievement: Achievement,
     isUnlocked: Boolean,
-    progress: Float
+    progress: Float,
+    onClick: () -> Unit
 ) {
     val alpha = if (isUnlocked) 1f else 0.4f
-    val cardColor = if (isUnlocked) achievement.color.copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
+    val bgColor = if (isUnlocked) achievement.color.copy(alpha = 0.1f) else Color.Gray.copy(alpha = 0.1f)
     val iconColor = if (isUnlocked) achievement.color else Color.Gray
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(alpha),
-        colors = CardDefaults.cardColors(containerColor = cardColor),
+            .alpha(alpha)
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = bgColor),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icona della medaglia
             Box(
                 modifier = Modifier
-                    .size(60.dp)
+                    .size(50.dp)
                     .clip(CircleShape)
                     .background(iconColor.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = achievement.icon,
-                    contentDescription = null,
-                    tint = iconColor,
-                    modifier = Modifier.size(32.dp)
-                )
+                Icon(achievement.icon, contentDescription = null, tint = iconColor)
             }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // Informazioni dell'achievement
+            Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        achievement.title,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Card(
+                        colors = CardDefaults.cardColors(achievement.difficulty.color.copy(alpha = 0.2f))
+                    ) {
+                        Text(
+                            achievement.difficulty.displayName,
+                            fontSize = 10.sp,
+                            color = achievement.difficulty.color,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Text(
-                    text = achievement.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (isUnlocked) MaterialTheme.colorScheme.onSurface else Color.Gray
-                )
-
-                Text(
-                    text = achievement.description,
+                    achievement.description,
                     fontSize = 14.sp,
-                    color = if (isUnlocked) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f) else Color.Gray,
                     modifier = Modifier.padding(top = 4.dp)
                 )
-
-                // Barra di progresso se non sbloccato
                 if (!isUnlocked && progress > 0) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(
                         progress = progress,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = achievement.color,
-                        trackColor = Color.Gray.copy(alpha = 0.3f)
+                        color = achievement.color
                     )
-
-                    val currentValue = when (achievement.category) {
-                        AchievementCategory.STUDY_TIME, AchievementCategory.SESSIONS ->
-                            (progress * achievement.requirement).toInt()
-                        else -> if (progress >= 1f) achievement.requirement else 0
-                    }
-
+                    val currentValue = (progress * achievement.requirement).toInt()
                     Text(
-                        text = "$currentValue / ${achievement.requirement}",
+                        "$currentValue / ${achievement.requirement}",
                         fontSize = 12.sp,
                         color = Color.Gray,
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
             }
-
-            // Badge di completamento
             if (isUnlocked) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
@@ -302,6 +454,99 @@ fun AchievementCard(
                     tint = achievement.color,
                     modifier = Modifier.size(24.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun AchievementDetailDialog(
+    achievement: Achievement,
+    isUnlocked: Boolean,
+    progress: Float,
+    currentValue: Int,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = { onDismiss() }) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        achievement.icon,
+                        contentDescription = null,
+                        tint = achievement.color,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            achievement.title,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            achievement.difficulty.displayName,
+                            fontSize = 12.sp,
+                            color = achievement.difficulty.color
+                        )
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(achievement.detailedDescription)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Suggerimento: ${achievement.tips}",
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
+                if (!isUnlocked) {
+                    Spacer(Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = progress,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = achievement.color
+                    )
+                    Text(
+                        "$currentValue / ${achievement.requirement}",
+                        fontSize = 12.sp,
+                        modifier = Modifier.align(Alignment.End)
+                    )
+                }
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { onDismiss() },
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("Chiudi")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ConfettiCelebration(achievement: Achievement, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.padding(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("🎉 Complimenti! 🎉", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Spacer(Modifier.height(8.dp))
+                Icon(achievement.icon, contentDescription = null, tint = achievement.color, modifier = Modifier.size(48.dp))
+                Text(achievement.title, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(achievement.description, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = onDismiss) {
+                    Text("Evviva!")
+                }
             }
         }
     }
