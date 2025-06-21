@@ -134,17 +134,24 @@ fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
         viewModel.loadStudyData()
     }
 
-    // Gestisce il popup celebrativo per nuove medaglie
+    // UNICO LaunchedEffect per gestire le nuove medaglie
     LaunchedEffect(studyData.newMedalUnlocked) {
         if (studyData.newMedalUnlocked) {
-            // Trova l'ultima medaglia sbloccata per mostrarla
-            val lastUnlocked = achievements.lastOrNull { isAchievementUnlocked(it) }
-            if (lastUnlocked != null) {
-                delay(500) // Piccola attesa per l'animazione
-                newUnlockedAchievement = lastUnlocked
-                // Reset del badge DOPO aver mostrato il popup
-                viewModel.resetNewMedalStatus()
+            // Ottieni gli ID delle medaglie appena sbloccate
+            val newlyUnlockedIds = viewModel.getNewlyUnlockedMedals()
+
+            if (newlyUnlockedIds.isNotEmpty()) {
+                // Prendi la prima medaglia appena sbloccata (o puoi implementare una logica per mostrarle tutte)
+                val newAchievement = achievements.firstOrNull { it.id in newlyUnlockedIds }
+
+                if (newAchievement != null) {
+                    delay(500) // Piccola attesa per l'animazione
+                    newUnlockedAchievement = newAchievement
+                }
             }
+
+            // Reset del flag DOPO aver impostato la medaglia da mostrare
+            viewModel.resetNewMedalStatus()
         }
     }
 
@@ -345,24 +352,23 @@ fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
             }
         }
 
-        // Dialog dettagli medaglia
-        LaunchedEffect(studyData.newMedalUnlocked) {
-            if (studyData.newMedalUnlocked) {
-                // Trova tutte le medaglie appena sbloccate
-                val newlyUnlockedIds = viewModel.getNewlyUnlockedMedals()
-                if (newlyUnlockedIds.isNotEmpty()) {
-                    // Prendi la prima medaglia appena sbloccata
-                    val firstNewAchievement = achievements.firstOrNull { it.id == newlyUnlockedIds.first() }
-                    if (firstNewAchievement != null) {
-                        delay(500) // Piccola attesa per l'animazione
-                        newUnlockedAchievement = firstNewAchievement
-                        // Reset del badge DOPO aver mostrato il popup
-                        viewModel.resetNewMedalStatus()
-                    }
-                }
-            }
+        // Dialog per i dettagli della medaglia (quando clicchi su una medaglia)
+        showAchievementDialog?.let { achievement ->
+            AchievementDetailDialog(
+                achievement = achievement,
+                isUnlocked = isAchievementUnlocked(achievement),
+                progress = getProgress(achievement),
+                currentValue = when (achievement.category) {
+                    AchievementCategory.STUDY_TIME -> studyData.activeStudyTime
+                    AchievementCategory.SESSIONS -> studyData.sessionsCompleted
+                    AchievementCategory.SPECIAL -> if (isAchievementUnlocked(achievement)) achievement.requirement else 0
+                    else -> 0
+                },
+                onDismiss = { showAchievementDialog = null }
+            )
         }
-        // Popup celebrativo per nuove medagliE
+
+        // Popup celebrativo per nuove medaglie
         newUnlockedAchievement?.let { achievement ->
             ConfettiCelebration(
                 achievement = achievement,

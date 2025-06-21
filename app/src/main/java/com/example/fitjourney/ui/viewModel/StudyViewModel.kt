@@ -11,7 +11,6 @@ import java.util.Locale
 class StudyViewModel : BaseViewModel() {
 
     private val _studyData = mutableStateOf(StudyData())
-    private var previousUnlockedMedals = mutableSetOf<String>()
     private var previousStudyData = StudyData()
     val studyData: State<StudyData> = _studyData
 
@@ -20,7 +19,7 @@ class StudyViewModel : BaseViewModel() {
     }
 
     private fun updateStudyData(newData: StudyData) {
-        previousStudyData = _studyData.value // Salva lo stato corrente come precedente
+        previousStudyData = _studyData.value.copy() // Copia profonda dello stato corrente
         _studyData.value = newData
     }
 
@@ -35,21 +34,21 @@ class StudyViewModel : BaseViewModel() {
     }
 
     fun simulateBreak() {
-        val oldData = _studyData.value
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             breakTime = _studyData.value.breakTime + 5
         )
+        updateStudyData(newData)
         checkForNewMedals()
         saveStudyData()
     }
 
     fun simulateProgress() {
-        val oldData = _studyData.value
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             activeStudyTime = _studyData.value.activeStudyTime + 25,
             breakTime = _studyData.value.breakTime + 8,
             sessionsCompleted = _studyData.value.sessionsCompleted + 1
         )
+        updateStudyData(newData)
         checkForNewMedals()
         saveStudyData()
     }
@@ -77,29 +76,29 @@ class StudyViewModel : BaseViewModel() {
 
     fun addLiveStudyTime(minutes: Int) {
         if (minutes <= 0) return
-        val oldData = _studyData.value
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             activeStudyTime = _studyData.value.activeStudyTime + minutes
         )
+        updateStudyData(newData)
         checkForNewMedals()
         saveStudyData()
     }
 
     fun incrementSessionCount() {
-        val oldData = _studyData.value
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             sessionsCompleted = _studyData.value.sessionsCompleted + 1
         )
+        updateStudyData(newData)
         checkForNewMedals()
         saveStudyData()
     }
 
     fun addLiveBreakTime(minutes: Int) {
         if (minutes <= 0) return
-        val oldData = _studyData.value
-        _studyData.value = _studyData.value.copy(
+        val newData = _studyData.value.copy(
             breakTime = _studyData.value.breakTime + minutes
         )
+        updateStudyData(newData)
         checkForNewMedals()
         saveStudyData()
     }
@@ -109,15 +108,24 @@ class StudyViewModel : BaseViewModel() {
         val oldUnlocked = calculateUnlockedMedals(previousStudyData)
         val newUnlocked = calculateUnlockedMedals(_studyData.value)
 
+        // Debug: stampa per verificare la logica
+        println("DEBUG: Medaglie precedenti: $oldUnlocked")
+        println("DEBUG: Medaglie attuali: $newUnlocked")
+        println("DEBUG: Nuove medaglie: ${newUnlocked - oldUnlocked}")
+
         if (newUnlocked.size > oldUnlocked.size) {
             _studyData.value = _studyData.value.copy(newMedalUnlocked = true)
+            println("DEBUG: Flag newMedalUnlocked impostato a true")
         }
     }
 
     fun getNewlyUnlockedMedals(): Set<String> {
         val oldUnlocked = calculateUnlockedMedals(previousStudyData)
         val newUnlocked = calculateUnlockedMedals(_studyData.value)
-        return newUnlocked - oldUnlocked
+        val newly = newUnlocked - oldUnlocked
+
+        println("DEBUG getNewlyUnlockedMedals: $newly")
+        return newly
     }
 
     private fun saveStudyData() {
@@ -175,11 +183,18 @@ class StudyViewModel : BaseViewModel() {
                         isTemporary = document.getBoolean("isTemporary") ?: false,
                         newMedalUnlocked = document.getBoolean("newMedalUnlocked") ?: false
                     )
+
+                    // IMPORTANTE: Imposta anche lo stato precedente uguale a quello caricato
+                    // per evitare falsi positivi al primo caricamento
+                    previousStudyData = loadedData.copy()
                     _studyData.value = loadedData
+
                     println("Dati studio caricati per $date")
                 } else {
                     // Se non esistono dati per oggi, inizializza con valori predefiniti
-                    _studyData.value = StudyData()
+                    val defaultData = StudyData()
+                    previousStudyData = defaultData.copy()
+                    _studyData.value = defaultData
                 }
             }
             .addOnFailureListener { e ->
@@ -188,6 +203,7 @@ class StudyViewModel : BaseViewModel() {
     }
 
     fun resetNewMedalStatus() {
+        println("DEBUG: Reset newMedalUnlocked flag")
         _studyData.value = _studyData.value.copy(newMedalUnlocked = false)
         saveStudyData() // Salva lo stato aggiornato
     }

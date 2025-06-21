@@ -73,6 +73,7 @@ dependencies {
 
     // Room
     implementation(libs.androidx.room.runtime.android)
+    implementation(libs.play.services.games)
     kapt(libs.androidx.room.compiler)
 
     // Coil
