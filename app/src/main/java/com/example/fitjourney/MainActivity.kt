@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.example.fitjourney.ui.screens.StudyHomeScreen
 import androidx.navigation.compose.*
 import com.example.fitjourney.ui.viewModel.AuthViewModel
+import com.example.fitjourney.ui.viewModel.WeeklyDataViewModel
 import com.example.fitjourney.ui.screens.*
 import com.example.fitjourney.ui.theme.FitJourneyTheme
 import com.example.fitjourney.ui.viewModel.StudyViewModel
@@ -33,11 +34,13 @@ class MainActivity : ComponentActivity() {
             FitJourneyTheme {
                 val authViewModel = remember { AuthViewModel() }
                 val studyViewModel = remember { StudyViewModel() }
+                val weeklyDataViewModel = remember { WeeklyDataViewModel() }
                 val googleSignInClient = GoogleAuthHelper.getGoogleSignInClient(this)
 
                 FitJourneyApp(
                     authViewModel = authViewModel,
                     studyViewModel = studyViewModel,
+                    weeklyDataViewModel = weeklyDataViewModel,
                     googleSignInClient = googleSignInClient
                 )
             }
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
 fun FitJourneyApp(
     authViewModel: AuthViewModel,
     studyViewModel: StudyViewModel,
+    weeklyDataViewModel: WeeklyDataViewModel,
     googleSignInClient: GoogleSignInClient
 ) {
     val navController = rememberNavController()
@@ -114,7 +118,8 @@ fun FitJourneyApp(
             }
             composable("weekly") {
                 WeeklyDataScreen(
-                    viewModel = studyViewModel
+                    studyViewModel = studyViewModel,
+                    weeklyDataViewModel = weeklyDataViewModel
                 )
             }
             composable("rewards") {
