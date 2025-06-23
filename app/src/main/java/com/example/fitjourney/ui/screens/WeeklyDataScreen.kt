@@ -38,6 +38,7 @@ import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,15 +114,15 @@ fun WeeklyDataScreen(
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
                                 Text(
                                     text = when (currentPeriod) {
-                                        WeeklyDataViewModel.Period.DAILY -> "Statistiche di Studio"
-                                        WeeklyDataViewModel.Period.WEEKLY -> "Tendenze Settimanali"
-                                        WeeklyDataViewModel.Period.MONTHLY -> "Panoramica Mensile"
+                                        WeeklyDataViewModel.Period.DAILY -> "Statistiche di studio"
+                                        WeeklyDataViewModel.Period.WEEKLY -> "Tendenze settimanali"
+                                        WeeklyDataViewModel.Period.MONTHLY -> "Panoramica mensile"
                                     },
                                     fontSize = 28.sp,
                                     fontWeight = FontWeight.Bold,
@@ -212,20 +213,6 @@ fun WeeklyDataScreen(
                                 AnimatedVisibility(
                                     visible = true,
                                     enter = slideInVertically(
-                                        animationSpec = tween(durationMillis = 300, delayMillis = 200)
-                                    ) + fadeIn()
-                                ) {
-                                    StatisticsOverviewCard(
-                                        weeklyData = weeklyData,
-                                        period = currentPeriod
-                                    )
-                                }
-                            }
-
-                            item {
-                                AnimatedVisibility(
-                                    visible = true,
-                                    enter = slideInVertically(
                                         animationSpec = tween(durationMillis = 300, delayMillis = 300)
                                     ) + fadeIn()
                                 ) {
@@ -285,52 +272,6 @@ fun WeeklyDataScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun AnimatedTrendBadge(
-    trendPercentage: Float,
-    period: WeeklyDataViewModel.Period
-) {
-    val animatedPercentage by animateFloatAsState(
-        targetValue = trendPercentage,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        )
-    )
-
-    val isPositive = animatedPercentage >= 0
-    val color = if (isPositive) Color(0xFF4CAF50) else Color(0xFFF44336)
-    val icon = if (isPositive) Icons.Default.TrendingUp else Icons.Default.TrendingDown
-
-    Card(
-        modifier = Modifier
-            .shadow(8.dp, CircleShape)
-            .clip(CircleShape),
-        colors = CardDefaults.cardColors(
-            containerColor = color.copy(alpha = 0.1f)
-        )
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp, 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "${if (isPositive) "+" else ""}${animatedPercentage.toInt()}%",
-                style = MaterialTheme.typography.labelMedium,
-                color = color,
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 }
@@ -398,102 +339,6 @@ private fun DataTypeFilterRow(
                 }
             )
         }
-    }
-}
-
-@Composable
-private fun StatisticsOverviewCard(
-    weeklyData: WeeklyDataViewModel.WeeklyStatistics,
-    period: WeeklyDataViewModel.Period
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Text(
-                text = "📈 Panoramica Generale",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatisticItem(
-                    title = "Ore Totali",
-                    value = "${weeklyData.totalStudyTime}h",
-                    icon = Icons.Default.Schedule,
-                    color = Color(0xFF2196F3)
-                )
-
-                StatisticItem(
-                    title = "Sessioni",
-                    value = "${weeklyData.totalSessions}",
-                    icon = Icons.Default.PlayArrow,
-                    color = Color(0xFF4CAF50)
-                )
-
-                StatisticItem(
-                    title = "Media/Giorno",
-                    value = "${weeklyData.averageStudyPerDay}h",
-                    icon = Icons.Default.BarChart,
-                    color = Color(0xFFFF9800)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatisticItem(
-    title: String,
-    value: String,
-    icon: ImageVector,
-    color: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .background(color.copy(alpha = 0.1f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
     }
 }
 
@@ -1043,7 +888,7 @@ private fun DetailedStatsCard(
     weeklyData: WeeklyDataViewModel.WeeklyStatistics,
     filter: WeeklyDataViewModel.DataFilter,
     period: WeeklyDataViewModel.Period,
-    viewModel: WeeklyDataViewModel // ASSICURATI DI PASSARE IL VIEWMODEL
+    viewModel: WeeklyDataViewModel
 ) {
     val dataList: List<Float> = when (filter) {
         WeeklyDataViewModel.DataFilter.STUDY -> weeklyData.dailyStudyTime
@@ -1066,11 +911,15 @@ private fun DetailedStatsCard(
             .getOrNull(bestDayIndex) ?: "N/D"
     } else "N/D"
 
-    // USA LA STREAK DAI DATI
     val currentStreak = weeklyData.currentStreak
 
-    val average = if (dataList.isNotEmpty()) dataList.average() else 0.0
-    val goalPercentage = calculateGoalPercentage(dataList, filter)
+    // CALCOLA LA MEDIA SOLO SUI GIORNI TRASCORSI
+    val daysElapsed = getDaysElapsedInWeek()
+    val average = if (dataList.isNotEmpty() && daysElapsed > 0) {
+        dataList.take(daysElapsed).average()
+    } else 0.0
+
+    val goalPercentage = calculateGoalPercentage(dataList.take(daysElapsed), filter)
 
     Card(
         modifier = Modifier
@@ -1103,11 +952,11 @@ private fun DetailedStatsCard(
                             0 -> bestDay
                             1 -> "$currentStreak giorni"
                             2 -> {
-                                val avgHours = average / 60f
-                                if (avgHours < 1 && average > 0) {
-                                    "%.0f min".format(average)
+                                // I dati sono già in ore
+                                if (average < 1 && average > 0) {
+                                    "%.0f min".format(average * 60f)
                                 } else {
-                                    "%.1f h".format(avgHours)
+                                    "%.1f h".format(average)
                                 }
                             }
                             else -> "$goalPercentage%"
@@ -1177,6 +1026,8 @@ private fun InsightsCard(
         )
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
+            Spacer(modifier = Modifier.height(12.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Lightbulb,
@@ -1186,7 +1037,7 @@ private fun InsightsCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "💡 Suggerimenti",
+                    text = "Suggerimenti",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -1216,14 +1067,14 @@ fun generateInsights(weeklyData: WeeklyDataViewModel.WeeklyStatistics): List<Ins
     val weekendAvg = weekend.averageOrNull()
 
     if (weekdaysAvg != null && weekendAvg != null) {
-        if (weekdaysAvg > weekendAvg + 10) {
+        if (weekdaysAvg > weekendAvg) {
             insights.add(
                 Insight(
                     text = "Le tue performance sono migliori nei giorni feriali. Continua così!",
                     icon = Icons.Default.TrendingUp
                 )
             )
-        } else if (weekendAvg > weekdaysAvg + 10) {
+        } else if (weekendAvg > weekdaysAvg) {
             insights.add(
                 Insight(
                     text = "Rendi il weekend produttivo: ottimi risultati anche nei giorni di riposo!",
@@ -1282,30 +1133,29 @@ private fun InsightItem(
     }
 }
 
-// FUNZIONE STREAK CORRETTA
-fun calculateStreak(data: List<Float>): Int {
-    if (data.isEmpty()) return 0
+fun getDaysElapsedInWeek(): Int {
+    val calendar = Calendar.getInstance()
+    val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
 
-    var streak = 0
-    // Inizia dall'ultimo giorno (più recente) e vai indietro
-    for (i in data.indices.reversed()) {
-        if (data[i] > 0) {
-            streak++
-        } else {
-            break // Interrompi alla prima giornata senza attività
-        }
+    return when (dayOfWeek) {
+        Calendar.SUNDAY -> 7
+        Calendar.MONDAY -> 1
+        Calendar.TUESDAY -> 2
+        Calendar.WEDNESDAY -> 3
+        Calendar.THURSDAY -> 4
+        Calendar.FRIDAY -> 5
+        Calendar.SATURDAY -> 6
+        else -> 1
     }
-    return streak
 }
 
-// FUNZIONE GOAL PERCENTAGE CORRETTA
 fun calculateGoalPercentage(data: List<Float>, filter: WeeklyDataViewModel.DataFilter): Int {
     if (data.isEmpty()) return 0
 
     val goalPerDay = when (filter) {
-        WeeklyDataViewModel.DataFilter.STUDY -> 120f // minuti
-        WeeklyDataViewModel.DataFilter.BREAK -> 30f  // minuti
-        WeeklyDataViewModel.DataFilter.TOTAL -> 150f // minuti
+        WeeklyDataViewModel.DataFilter.STUDY -> 2f // ore (120 minuti = 2 ore)
+        WeeklyDataViewModel.DataFilter.BREAK -> 0.5f  // ore (30 minuti = 0.5 ore)
+        WeeklyDataViewModel.DataFilter.TOTAL -> 2.5f // ore (150 minuti = 2.5 ore)
         WeeklyDataViewModel.DataFilter.SESSIONS -> 4f // numero sessioni
     }
 

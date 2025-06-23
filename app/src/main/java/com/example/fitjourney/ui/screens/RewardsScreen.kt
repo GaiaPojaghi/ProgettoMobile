@@ -190,8 +190,8 @@ fun RewardsScreen(viewModel: StudyViewModel = viewModel()) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "Medaglie e Obiettivi",
-                            fontSize = 22.sp,
+                            "Medaglie e obiettivi",
+                            fontSize = 28.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White,
                             textAlign = TextAlign.Center
