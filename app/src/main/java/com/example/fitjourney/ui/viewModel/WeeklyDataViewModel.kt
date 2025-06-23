@@ -75,6 +75,7 @@ class WeeklyDataViewModel : BaseViewModel() {
         val bestWeek: String = "",
         val bestMonth: String = "",
         val isEmpty: Boolean = true,
+        val currentStreak: Int = 0
     )
 
     init {
@@ -401,7 +402,7 @@ class WeeklyDataViewModel : BaseViewModel() {
                     weeklyBreakTime.any { it > 0 } ||
                     weeklySessions.any { it > 0 }
 
-            if (!hasAnyData) { 
+            if (!hasAnyData) {
                 _errorMessage.value = "Nessun dato trovato per questo periodo"
             }
         }
@@ -640,6 +641,70 @@ class WeeklyDataViewModel : BaseViewModel() {
             trendPercentage = trendPercentage,
             bestMonth = bestMonth,
             isEmpty = !hasData
+        )
+    }
+
+    fun getCurrentStreak(filter: DataFilter) {
+        val userId = getCurrentUserId()
+        if (userId == null) return
+
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val calendar = Calendar.getInstance()
+
+        var streak = 0
+        var checkDate = calendar.clone() as Calendar
+
+        // Controlla fino a 60 giorni indietro
+        val maxDaysToCheck = 60
+        var daysChecked = 0
+
+        fun checkNextDay() {
+            if (daysChecked >= maxDaysToCheck) {
+                updateStreakInStatistics(streak)
+                return
+            }
+
+            val currentDate = dateFormat.format(checkDate.time)
+
+            firestore.collection("users")
+                .document(userId)
+                .collection("studyData")
+                .document(currentDate)
+                .get()
+                .addOnSuccessListener { document ->
+                    val dayValue = when (filter) {
+                        DataFilter.STUDY -> document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
+                        DataFilter.BREAK -> document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
+                        DataFilter.TOTAL -> {
+                            val study = document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
+                            val pause = document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
+                            study + pause
+                        }
+                        DataFilter.SESSIONS -> document.getLong("sessionsCompleted")?.toFloat() ?: 0f
+                    }
+
+                    if (dayValue > 0) {
+                        streak++
+                        checkDate.add(Calendar.DAY_OF_MONTH, -1) // Vai al giorno precedente
+                        daysChecked++
+                        checkNextDay() // Continua ricorsivamente
+                    } else {
+                        // Streak interrotta
+                        updateStreakInStatistics(streak)
+                    }
+                }
+                .addOnFailureListener {
+                    // In caso di errore, considera il giorno come 0 e interrompi la streak
+                    updateStreakInStatistics(streak)
+                }
+        }
+
+        checkNextDay()
+    }
+
+    private fun updateStreakInStatistics(streak: Int) {
+        _weeklyData.value = _weeklyData.value.copy(
+            currentStreak = streak
         )
     }
 }

@@ -262,7 +262,8 @@ fun WeeklyDataScreen(
                                     DetailedStatsCard(
                                         weeklyData = weeklyData,
                                         filter = currentFilter,
-                                        period = currentPeriod
+                                        period = currentPeriod,
+                                        viewModel = weeklyDataViewModel
                                     )
                                 }
                             }
@@ -1041,7 +1042,8 @@ private fun LineChart.setupLineChartStyle() {
 private fun DetailedStatsCard(
     weeklyData: WeeklyDataViewModel.WeeklyStatistics,
     filter: WeeklyDataViewModel.DataFilter,
-    period: WeeklyDataViewModel.Period
+    period: WeeklyDataViewModel.Period,
+    viewModel: WeeklyDataViewModel // ASSICURATI DI PASSARE IL VIEWMODEL
 ) {
     val dataList: List<Float> = when (filter) {
         WeeklyDataViewModel.DataFilter.STUDY -> weeklyData.dailyStudyTime
@@ -1050,12 +1052,25 @@ private fun DetailedStatsCard(
         WeeklyDataViewModel.DataFilter.SESSIONS -> weeklyData.dailySessions.map { it.toFloat() }
     }
 
-    val bestDayIndex = dataList.indices.maxByOrNull { dataList[it] } ?: -1
-    val bestDay = listOf("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica").getOrNull(bestDayIndex) ?: "N/D"
+    // CARICA LA STREAK QUANDO CAMBIA IL FILTRO
+    LaunchedEffect(filter) {
+        viewModel.getCurrentStreak(filter)
+    }
 
-    val currentStreak = calculateStreak(dataList) // funzione da scrivere sotto
+    val bestDayIndex = if (dataList.isNotEmpty()) {
+        dataList.indices.maxByOrNull { dataList[it] } ?: -1
+    } else -1
+
+    val bestDay = if (bestDayIndex >= 0) {
+        listOf("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica")
+            .getOrNull(bestDayIndex) ?: "N/D"
+    } else "N/D"
+
+    // USA LA STREAK DAI DATI
+    val currentStreak = weeklyData.currentStreak
+
     val average = if (dataList.isNotEmpty()) dataList.average() else 0.0
-    val goalPercentage = calculateGoalPercentage(dataList, filter) // funzione da personalizzare
+    val goalPercentage = calculateGoalPercentage(dataList, filter)
 
     Card(
         modifier = Modifier
@@ -1087,7 +1102,14 @@ private fun DetailedStatsCard(
                         value = when (index) {
                             0 -> bestDay
                             1 -> "$currentStreak giorni"
-                            2 -> "%.1f h".format(average / 60f) // se i dati sono in minuti
+                            2 -> {
+                                val avgHours = average / 60f
+                                if (avgHours < 1 && average > 0) {
+                                    "%.0f min".format(average)
+                                } else {
+                                    "%.1f h".format(avgHours)
+                                }
+                            }
                             else -> "$goalPercentage%"
                         },
                         color = when (index) {
@@ -1260,25 +1282,35 @@ private fun InsightItem(
     }
 }
 
+// FUNZIONE STREAK CORRETTA
 fun calculateStreak(data: List<Float>): Int {
+    if (data.isEmpty()) return 0
+
     var streak = 0
+    // Inizia dall'ultimo giorno (più recente) e vai indietro
     for (i in data.indices.reversed()) {
-        if (data[i] > 0) streak++ else break
+        if (data[i] > 0) {
+            streak++
+        } else {
+            break // Interrompi alla prima giornata senza attività
+        }
     }
     return streak
 }
 
+// FUNZIONE GOAL PERCENTAGE CORRETTA
 fun calculateGoalPercentage(data: List<Float>, filter: WeeklyDataViewModel.DataFilter): Int {
+    if (data.isEmpty()) return 0
+
     val goalPerDay = when (filter) {
-        WeeklyDataViewModel.DataFilter.STUDY -> 120f
-        WeeklyDataViewModel.DataFilter.BREAK -> 30f
-        WeeklyDataViewModel.DataFilter.TOTAL -> 150f
-        WeeklyDataViewModel.DataFilter.SESSIONS -> 4f
+        WeeklyDataViewModel.DataFilter.STUDY -> 120f // minuti
+        WeeklyDataViewModel.DataFilter.BREAK -> 30f  // minuti
+        WeeklyDataViewModel.DataFilter.TOTAL -> 150f // minuti
+        WeeklyDataViewModel.DataFilter.SESSIONS -> 4f // numero sessioni
     }
 
-    if (data.isEmpty()) return 0
     val daysMet = data.count { it >= goalPerDay }
-    return (daysMet * 100f / data.size).toInt()
+    return ((daysMet.toFloat() / data.size.toFloat()) * 100f).toInt()
 }
 
 fun List<Float>.averageOrNull(): Float? =
