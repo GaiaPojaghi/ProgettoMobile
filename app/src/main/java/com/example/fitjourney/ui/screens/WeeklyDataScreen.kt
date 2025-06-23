@@ -49,6 +49,8 @@ fun WeeklyDataScreen(
     val currentFilter by weeklyDataViewModel.currentFilter.collectAsState()
     val currentPeriod by weeklyDataViewModel.currentPeriod.collectAsState()
     val isLoading by weeklyDataViewModel.isLoading.collectAsState()
+    val isUserAuthenticated by weeklyDataViewModel.isUserAuthenticated.collectAsState()
+    val errorMessage by weeklyDataViewModel.errorMessage.collectAsState()
 
     LaunchedEffect(Unit) {
         weeklyDataViewModel.loadWeeklyData()
@@ -66,172 +68,217 @@ fun WeeklyDataScreen(
                 )
             )
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            // Header con sfondo blu e senza padding esterno
+        if (!isUserAuthenticated) {
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF283593))
-                    .padding(bottom = 24.dp, top = 16.dp, start = 16.dp, end = 16.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(16.dp)
                 ) {
-                    Column {
-                        Text(
-                            text = when (currentPeriod) {
-                                WeeklyDataViewModel.Period.DAILY -> "Statistiche di Studio"
-                                WeeklyDataViewModel.Period.WEEKLY -> "Tendenze Settimanali"
-                                WeeklyDataViewModel.Period.MONTHLY -> "Panoramica Mensile"
-                            },
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Accesso richiesto",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Per visualizzare le tue statistiche di studio, effettua il login.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
-
+        } else {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
+                modifier = Modifier.fillMaxSize()
             ) {
-                Text(
-                    text = when (currentPeriod) {
-                        WeeklyDataViewModel.Period.DAILY -> "I tuoi progressi settimanali"
-                        WeeklyDataViewModel.Period.WEEKLY -> "Ultime 4 settimane"
-                        WeeklyDataViewModel.Period.MONTHLY -> "Ultimi 6 mesi"
-                    },
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.Black
-                )
-
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                // Header con sfondo blu e senza padding esterno
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF283593))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(bottom = 24.dp, top = 16.dp, start = 16.dp, end = 16.dp)
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp),
-                                strokeWidth = 4.dp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = "Caricamento dati...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically() + fadeIn()
-                            ) {
-                                PeriodFilterRow(
-                                    currentPeriod = currentPeriod,
-                                    onPeriodChange = { weeklyDataViewModel.setPeriod(it) }
+                            Column {
+                                Text(
+                                    text = when (currentPeriod) {
+                                        WeeklyDataViewModel.Period.DAILY -> "Statistiche di Studio"
+                                        WeeklyDataViewModel.Period.WEEKLY -> "Tendenze Settimanali"
+                                        WeeklyDataViewModel.Period.MONTHLY -> "Panoramica Mensile"
+                                    },
+                                    fontSize = 28.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
                                 )
                             }
-                        }
 
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically(
-                                    animationSpec = tween(durationMillis = 300, delayMillis = 100)
-                                ) + fadeIn()
-                            ) {
-                                DataTypeFilterRow(
-                                    currentFilter = currentFilter,
-                                    onFilterChange = { weeklyDataViewModel.setFilter(it) }
-                                )
-                            }
-                        }
-
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically(
-                                    animationSpec = tween(durationMillis = 300, delayMillis = 200)
-                                ) + fadeIn()
-                            ) {
-                                StatisticsOverviewCard(
-                                    weeklyData = weeklyData,
-                                    period = currentPeriod
-                                )
-                            }
-                        }
-
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically(
-                                    animationSpec = tween(durationMillis = 300, delayMillis = 300)
-                                ) + fadeIn()
-                            ) {
-                                when (currentPeriod) {
-                                    WeeklyDataViewModel.Period.DAILY -> {
-                                        DailyChartCard(
-                                            weeklyData = weeklyData,
-                                            filter = currentFilter
-                                        )
-                                    }
-                                    WeeklyDataViewModel.Period.WEEKLY -> {
-                                        WeeklyChartCard(
-                                            weeklyData = weeklyData,
-                                            filter = currentFilter
-                                        )
-                                    }
-                                    WeeklyDataViewModel.Period.MONTHLY -> {
-                                        MonthlyChartCard(
-                                            weeklyData = weeklyData,
-                                            filter = currentFilter
-                                        )
-                                    }
+                            if (errorMessage != null) {
+                                IconButton(
+                                    onClick = { weeklyDataViewModel.clearError() }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Chiudi messaggio errore",
+                                        tint = Color.White
+                                    )
                                 }
                             }
                         }
 
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically(
-                                    animationSpec = tween(durationMillis = 300, delayMillis = 400)
-                                ) + fadeIn()
+                        if (errorMessage != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = errorMessage!!,
+                                color = Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp)
+                ) {
+                    if (isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                DetailedStatsCard(
-                                    weeklyData = weeklyData,
-                                    filter = currentFilter,
-                                    period = currentPeriod
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(48.dp),
+                                    strokeWidth = 4.dp
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Caricamento dati...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(20.dp)
+                        ) {
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically() + fadeIn()
+                                ) {
+                                    PeriodFilterRow(
+                                        currentPeriod = currentPeriod,
+                                        onPeriodChange = { weeklyDataViewModel.setPeriod(it) }
+                                    )
+                                }
+                            }
 
-                        item {
-                            AnimatedVisibility(
-                                visible = true,
-                                enter = slideInVertically(
-                                    animationSpec = tween(durationMillis = 300, delayMillis = 500)
-                                ) + fadeIn()
-                            ) {
-                                InsightsCard(
-                                    weeklyData = weeklyData,
-                                    period = currentPeriod
-                                )
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically(
+                                        animationSpec = tween(durationMillis = 300, delayMillis = 100)
+                                    ) + fadeIn()
+                                ) {
+                                    DataTypeFilterRow(
+                                        currentFilter = currentFilter,
+                                        onFilterChange = { weeklyDataViewModel.setFilter(it) }
+                                    )
+                                }
+                            }
+
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically(
+                                        animationSpec = tween(durationMillis = 300, delayMillis = 200)
+                                    ) + fadeIn()
+                                ) {
+                                    StatisticsOverviewCard(
+                                        weeklyData = weeklyData,
+                                        period = currentPeriod
+                                    )
+                                }
+                            }
+
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically(
+                                        animationSpec = tween(durationMillis = 300, delayMillis = 300)
+                                    ) + fadeIn()
+                                ) {
+                                    when (currentPeriod) {
+                                        WeeklyDataViewModel.Period.DAILY -> {
+                                            DailyChartCard(
+                                                weeklyData = weeklyData,
+                                                filter = currentFilter
+                                            )
+                                        }
+                                        WeeklyDataViewModel.Period.WEEKLY -> {
+                                            WeeklyChartCard(
+                                                weeklyData = weeklyData,
+                                                filter = currentFilter
+                                            )
+                                        }
+                                        WeeklyDataViewModel.Period.MONTHLY -> {
+                                            MonthlyChartCard(
+                                                weeklyData = weeklyData,
+                                                filter = currentFilter
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically(
+                                        animationSpec = tween(durationMillis = 300, delayMillis = 400)
+                                    ) + fadeIn()
+                                ) {
+                                    DetailedStatsCard(
+                                        weeklyData = weeklyData,
+                                        filter = currentFilter,
+                                        period = currentPeriod
+                                    )
+                                }
+                            }
+
+                            item {
+                                AnimatedVisibility(
+                                    visible = true,
+                                    enter = slideInVertically(
+                                        animationSpec = tween(durationMillis = 300, delayMillis = 500)
+                                    ) + fadeIn()
+                                ) {
+                                    InsightsCard(
+                                        weeklyData = weeklyData,
+                                        period = currentPeriod
+                                    )
+                                }
                             }
                         }
                     }
@@ -490,7 +537,7 @@ private fun DailyChartCard(
                     DailyBarChart(
                         weeklyData = weeklyData,
                         filter = filter,
-                        modifier = Modifier.fillMaxSize() // Aggiungi fillMaxSize()
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
@@ -522,7 +569,7 @@ private fun WeeklyChartCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp) // Aumentato da 200dp a 300dp
+                    .height(300.dp)
             ) {
                 if (weeklyData.isEmpty) {
                     Box(
@@ -539,7 +586,7 @@ private fun WeeklyChartCard(
                     WeeklyLineChart(
                         weeklyData = weeklyData,
                         filter = filter,
-                        modifier = Modifier.fillMaxSize() // Aggiungi fillMaxSize()
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
@@ -571,7 +618,7 @@ private fun MonthlyChartCard(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp) // Aumentato da 200dp a 300dp
+                    .height(300.dp)
             ) {
                 if (weeklyData.isEmpty) {
                     Box(
@@ -588,7 +635,7 @@ private fun MonthlyChartCard(
                     MonthlyBarChart(
                         weeklyData = weeklyData,
                         filter = filter,
-                        modifier = Modifier.fillMaxSize() // Aggiungi fillMaxSize()
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
             }
@@ -620,41 +667,28 @@ fun DailyBarChart(
 
                 val entries = when (filter) {
                     WeeklyDataViewModel.DataFilter.STUDY -> {
-                        if (weeklyData.dailyStudyTime.isEmpty()) {
-                            // Dati di esempio se vuoti
-                            listOf(1.5f, 2.0f, 1.8f, 2.5f, 3.0f, 1.0f, 0.5f)
-                        } else {
-                            weeklyData.dailyStudyTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.dailyStudyTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.BREAK -> {
-                        if (weeklyData.dailyBreakTime.isEmpty()) {
-                            listOf(0.5f, 0.8f, 0.6f, 0.7f, 0.9f, 0.3f, 0.2f)
-                        } else {
-                            weeklyData.dailyBreakTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.dailyBreakTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.TOTAL -> {
-                        if (weeklyData.dailyTotalTime.isEmpty()) {
-                            listOf(2.0f, 2.8f, 2.4f, 3.2f, 3.9f, 1.3f, 0.7f)
-                        } else {
-                            weeklyData.dailyTotalTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.dailyTotalTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.SESSIONS -> {
-                        if (weeklyData.dailySessions.isEmpty()) {
-                            listOf(2, 3, 2, 4, 5, 1, 1)
-                        } else {
-                            weeklyData.dailySessions
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value.toFloat()))
-                        }
+                        weeklyData.dailySessions.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value.toFloat()))
+                            } ?: emptyList()
                     }
                 }
 
@@ -737,40 +771,28 @@ fun WeeklyLineChart(
 
                 val entries = when (filter) {
                     WeeklyDataViewModel.DataFilter.STUDY -> {
-                        if (weeklyData.weeklyStudyTime.isEmpty()) {
-                            listOf(8.0f, 12.5f, 15.2f, 18.0f)
-                        } else {
-                            weeklyData.weeklyStudyTime
-                        }.mapIndexed { index, value ->
-                            Entry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.weeklyStudyTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                Entry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.BREAK -> {
-                        if (weeklyData.weeklyBreakTime.isEmpty()) {
-                            listOf(2.0f, 3.5f, 4.2f, 4.8f)
-                        } else {
-                            weeklyData.weeklyBreakTime
-                        }.mapIndexed { index, value ->
-                            Entry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.weeklyBreakTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                Entry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.TOTAL -> {
-                        if (weeklyData.weeklyTotalTime.isEmpty()) {
-                            listOf(10.0f, 16.0f, 19.4f, 22.8f)
-                        } else {
-                            weeklyData.weeklyTotalTime
-                        }.mapIndexed { index, value ->
-                            Entry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.weeklyTotalTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                Entry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.SESSIONS -> {
-                        if (weeklyData.weeklySessions.isEmpty()) {
-                            listOf(12, 18, 22, 25)
-                        } else {
-                            weeklyData.weeklySessions
-                        }.mapIndexed { index, value ->
-                            Entry(index.toFloat(), maxOf(0f, value.toFloat()))
-                        }
+                        weeklyData.weeklySessions.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                Entry(index.toFloat(), maxOf(0f, value.toFloat()))
+                            } ?: emptyList()
                     }
                 }
 
@@ -841,40 +863,28 @@ fun MonthlyBarChart(
 
                 val entries = when (filter) {
                     WeeklyDataViewModel.DataFilter.STUDY -> {
-                        if (weeklyData.monthlyStudyTime.isEmpty()) {
-                            listOf(45.0f, 52.0f, 48.0f, 65.0f, 72.0f, 78.0f)
-                        } else {
-                            weeklyData.monthlyStudyTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.monthlyStudyTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.BREAK -> {
-                        if (weeklyData.monthlyBreakTime.isEmpty()) {
-                            listOf(12.0f, 15.0f, 14.0f, 18.0f, 20.0f, 22.0f)
-                        } else {
-                            weeklyData.monthlyBreakTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.monthlyBreakTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.TOTAL -> {
-                        if (weeklyData.monthlyTotalTime.isEmpty()) {
-                            listOf(57.0f, 67.0f, 62.0f, 83.0f, 92.0f, 100.0f)
-                        } else {
-                            weeklyData.monthlyTotalTime
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value))
-                        }
+                        weeklyData.monthlyTotalTime.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value))
+                            } ?: emptyList()
                     }
                     WeeklyDataViewModel.DataFilter.SESSIONS -> {
-                        if (weeklyData.monthlySessions.isEmpty()) {
-                            listOf(85, 95, 88, 110, 125, 135)
-                        } else {
-                            weeklyData.monthlySessions
-                        }.mapIndexed { index, value ->
-                            BarEntry(index.toFloat(), maxOf(0f, value.toFloat()))
-                        }
+                        weeklyData.monthlySessions.takeIf { it.isNotEmpty() }
+                            ?.mapIndexed { index, value ->
+                                BarEntry(index.toFloat(), maxOf(0f, value.toFloat()))
+                            } ?: emptyList()
                     }
                 }
 
@@ -940,9 +950,9 @@ private fun BarChart.setupBarChartStyle() {
         isGranularityEnabled = true
         labelCount = 7
         textColor = android.graphics.Color.BLACK
-        textSize = 14f // Aumentato da 12f a 14f
+        textSize = 14f
         setLabelCount(7, false)
-        yOffset = 10f // Aggiungi spazio per le etichette
+        yOffset = 10f
     }
 
     // Configurazione asse Y sinistro
@@ -951,11 +961,11 @@ private fun BarChart.setupBarChartStyle() {
         setDrawAxisLine(true)
         axisMinimum = 0f
         textColor = android.graphics.Color.BLACK
-        textSize = 14f // Aumentato da 12f a 14f
+        textSize = 14f
         gridColor = android.graphics.Color.LTGRAY
         gridLineWidth = 0.5f
         setStartAtZero(true)
-        spaceTop = 10f // Aggiungi spazio sopra
+        spaceTop = 10f
     }
 
     // Disabilita asse Y destro
@@ -969,7 +979,7 @@ private fun BarChart.setupBarChartStyle() {
     setScaleEnabled(false)
     isDoubleTapToZoomEnabled = false
 
-    // Margini e viewport - Aumentati per più spazio
+    // Margini e viewport
     setExtraOffsets(15f, 20f, 15f, 20f)
     setFitBars(true)
 }
@@ -994,9 +1004,9 @@ private fun LineChart.setupLineChartStyle() {
         isGranularityEnabled = true
         labelCount = 4
         textColor = android.graphics.Color.BLACK
-        textSize = 14f // Aumentato da 12f a 14f
+        textSize = 14f
         setLabelCount(4, false)
-        yOffset = 10f // Aggiungi spazio per le etichette
+        yOffset = 10f
     }
 
     // Configurazione asse Y sinistro
@@ -1005,11 +1015,11 @@ private fun LineChart.setupLineChartStyle() {
         setDrawAxisLine(true)
         axisMinimum = 0f
         textColor = android.graphics.Color.BLACK
-        textSize = 14f // Aumentato da 12f a 14f
+        textSize = 14f
         gridColor = android.graphics.Color.LTGRAY
         gridLineWidth = 0.5f
         setStartAtZero(true)
-        spaceTop = 10f // Aggiungi spazio sopra
+        spaceTop = 10f
     }
 
     // Disabilita asse Y destro
@@ -1023,62 +1033,8 @@ private fun LineChart.setupLineChartStyle() {
     setScaleEnabled(true)
     isDoubleTapToZoomEnabled = false
 
-    // Margini - Aumentati per più spazio
+    // Margini
     setExtraOffsets(15f, 20f, 15f, 20f)
-}
-
-// Versione con altezza adattiva per tablet/schermi grandi
-@Composable
-private fun DailyChartCardAdaptive(
-    weeklyData: WeeklyDataViewModel.WeeklyStatistics,
-    filter: WeeklyDataViewModel.DataFilter
-) {
-    val configuration = LocalConfiguration.current
-    val screenHeight = configuration.screenHeightDp.dp
-    val chartHeight = (screenHeight * 0.4f).coerceAtLeast(300.dp).coerceAtMost(500.dp)
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(16.dp))
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Text(
-                text = "📊 Andamento Settimanale",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(chartHeight) // Altezza adattiva
-            ) {
-                if (weeklyData.isEmpty) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Nessun dato disponibile per questo periodo",
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                } else {
-                    DailyBarChart(
-                        weeklyData = weeklyData,
-                        filter = filter,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -1087,6 +1043,20 @@ private fun DetailedStatsCard(
     filter: WeeklyDataViewModel.DataFilter,
     period: WeeklyDataViewModel.Period
 ) {
+    val dataList: List<Float> = when (filter) {
+        WeeklyDataViewModel.DataFilter.STUDY -> weeklyData.dailyStudyTime
+        WeeklyDataViewModel.DataFilter.BREAK -> weeklyData.dailyBreakTime
+        WeeklyDataViewModel.DataFilter.TOTAL -> weeklyData.dailyTotalTime
+        WeeklyDataViewModel.DataFilter.SESSIONS -> weeklyData.dailySessions.map { it.toFloat() }
+    }
+
+    val bestDayIndex = dataList.indices.maxByOrNull { dataList[it] } ?: -1
+    val bestDay = listOf("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica").getOrNull(bestDayIndex) ?: "N/D"
+
+    val currentStreak = calculateStreak(dataList) // funzione da scrivere sotto
+    val average = if (dataList.isNotEmpty()) dataList.average() else 0.0
+    val goalPercentage = calculateGoalPercentage(dataList, filter) // funzione da personalizzare
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1115,10 +1085,10 @@ private fun DetailedStatsCard(
                             else -> "Obiettivo"
                         },
                         value = when (index) {
-                            0 -> "Lunedì"
-                            1 -> "5 giorni"
-                            2 -> "4.2h"
-                            else -> "85%"
+                            0 -> bestDay
+                            1 -> "$currentStreak giorni"
+                            2 -> "%.1f h".format(average / 60f) // se i dati sono in minuti
+                            else -> "$goalPercentage%"
                         },
                         color = when (index) {
                             0 -> Color(0xFF4CAF50)
@@ -1174,6 +1144,8 @@ private fun InsightsCard(
     weeklyData: WeeklyDataViewModel.WeeklyStatistics,
     period: WeeklyDataViewModel.Period
 ) {
+    val insights = generateInsights(weeklyData)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1182,12 +1154,8 @@ private fun InsightsCard(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         )
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.Lightbulb,
                     contentDescription = null,
@@ -1196,7 +1164,7 @@ private fun InsightsCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "💡 Insights & Suggerimenti",
+                    text = "💡 Suggerimenti",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -1205,26 +1173,66 @@ private fun InsightsCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                InsightItem(
-                    text = "Le tue migliori performance sono nei giorni feriali. Considera di mantenere questa routine!",
-                    icon = Icons.Default.TrendingUp
-                )
-
-                InsightItem(
-                    text = "Hai aumentato il tempo di studio del 15% rispetto alla settimana scorsa. Ottimo lavoro!",
-                    icon = Icons.Default.Celebration
-                )
-
-                InsightItem(
-                    text = "Prova a fare pause più frequenti per migliorare la concentrazione.",
-                    icon = Icons.Default.Psychology
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                insights.forEach { insight ->
+                    InsightItem(text = insight.text, icon = insight.icon)
+                }
             }
         }
     }
+}
+
+data class Insight(val text: String, val icon: ImageVector)
+
+fun generateInsights(weeklyData: WeeklyDataViewModel.WeeklyStatistics): List<Insight> {
+    val insights = mutableListOf<Insight>()
+
+    // Giornate feriali vs weekend
+    val weekdays = weeklyData.dailyStudyTime.take(5)
+    val weekend = weeklyData.dailyStudyTime.takeLast(2)
+    val weekdaysAvg = weekdays.averageOrNull()
+    val weekendAvg = weekend.averageOrNull()
+
+    if (weekdaysAvg != null && weekendAvg != null) {
+        if (weekdaysAvg > weekendAvg + 10) {
+            insights.add(
+                Insight(
+                    text = "Le tue performance sono migliori nei giorni feriali. Continua così!",
+                    icon = Icons.Default.TrendingUp
+                )
+            )
+        } else if (weekendAvg > weekdaysAvg + 10) {
+            insights.add(
+                Insight(
+                    text = "Rendi il weekend produttivo: ottimi risultati anche nei giorni di riposo!",
+                    icon = Icons.Default.EmojiEvents
+                )
+            )
+        }
+    }
+
+    // Pause troppo corte o assenti
+    val avgBreak = weeklyData.dailyBreakTime.averageOrNull()
+    if (avgBreak != null && avgBreak < 10f) {
+        insights.add(
+            Insight(
+                text = "Fai pause più frequenti: una mente riposata è più produttiva.",
+                icon = Icons.Default.Psychology
+            )
+        )
+    }
+
+    // Default se mancano dati
+    if (insights.isEmpty()) {
+        insights.add(
+            Insight(
+                text = "Continua a monitorare i tuoi dati per ricevere suggerimenti personalizzati!",
+                icon = Icons.Default.Info
+            )
+        )
+    }
+
+    return insights.take(3)
 }
 
 @Composable
@@ -1251,3 +1259,28 @@ private fun InsightItem(
         )
     }
 }
+
+fun calculateStreak(data: List<Float>): Int {
+    var streak = 0
+    for (i in data.indices.reversed()) {
+        if (data[i] > 0) streak++ else break
+    }
+    return streak
+}
+
+fun calculateGoalPercentage(data: List<Float>, filter: WeeklyDataViewModel.DataFilter): Int {
+    val goalPerDay = when (filter) {
+        WeeklyDataViewModel.DataFilter.STUDY -> 120f
+        WeeklyDataViewModel.DataFilter.BREAK -> 30f
+        WeeklyDataViewModel.DataFilter.TOTAL -> 150f
+        WeeklyDataViewModel.DataFilter.SESSIONS -> 4f
+    }
+
+    if (data.isEmpty()) return 0
+    val daysMet = data.count { it >= goalPerDay }
+    return (daysMet * 100f / data.size).toInt()
+}
+
+fun List<Float>.averageOrNull(): Float? =
+    if (isNotEmpty()) average().toFloat() else null
+

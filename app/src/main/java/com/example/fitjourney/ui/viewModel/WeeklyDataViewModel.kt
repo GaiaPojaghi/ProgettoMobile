@@ -47,22 +47,20 @@ class WeeklyDataViewModel : BaseViewModel() {
         val totalBreakTime: Int = 0,
         val totalTime: Int = 0,
         val totalSessions: Int = 0,
-        val dailyStudyTime: List<Float> = List(7) { 0f },
-        val dailyBreakTime: List<Float> = List(7) { 0f },
-        val dailyTotalTime: List<Float> = List(7) { 0f },
-        val dailySessions: List<Int> = List(7) { 0 },
-        // Dati settimanali (ultime 4 settimane)
-        val weeklyStudyTime: List<Float> = List(4) { 0f },
-        val weeklyBreakTime: List<Float> = List(4) { 0f },
-        val weeklyTotalTime: List<Float> = List(4) { 0f },
-        val weeklySessions: List<Int> = List(4) { 0 },
-        // Dati mensili (ultimi 6 mesi)
-        val monthlyStudyTime: List<Float> = List(6) { 0f },
-        val monthlyBreakTime: List<Float> = List(6) { 0f },
-        val monthlyTotalTime: List<Float> = List(6) { 0f },
-        val monthlySessions: List<Int> = List(6) { 0 },
-        val weeklyStudyGoal: Int = 1260, // 180 * 7 = 21 ore settimanali
-        val weeklyBreakGoal: Int = 420,  // 60 * 7 = 7 ore settimanali
+        val dailyStudyTime: List<Float> = emptyList(),
+        val dailyBreakTime: List<Float> = emptyList(),
+        val dailyTotalTime: List<Float> = emptyList(),
+        val dailySessions: List<Int> = emptyList(),
+        val weeklyStudyTime: List<Float> = emptyList(),
+        val weeklyBreakTime: List<Float> = emptyList(),
+        val weeklyTotalTime: List<Float> = emptyList(),
+        val weeklySessions: List<Int> = emptyList(),
+        val monthlyStudyTime: List<Float> = emptyList(),
+        val monthlyBreakTime: List<Float> = emptyList(),
+        val monthlyTotalTime: List<Float> = emptyList(),
+        val monthlySessions: List<Int> = emptyList(),
+        val weeklyStudyGoal: Int = 1260,
+        val weeklyBreakGoal: Int = 420,
         val studyGoalProgress: Float = 0f,
         val breakGoalProgress: Float = 0f,
         val averageStudyPerDay: Float = 0f,
@@ -70,10 +68,10 @@ class WeeklyDataViewModel : BaseViewModel() {
         val mostProductiveDay: String = "",
         val weekStartDate: String = "",
         val weekEndDate: String = "",
-        val trendPercentage: Float = 0f, // Trend rispetto al periodo precedente
+        val trendPercentage: Float = 0f,
         val bestWeek: String = "",
         val bestMonth: String = "",
-        val isEmpty: Boolean = true // Indica se ci sono dati da mostrare
+        val isEmpty: Boolean = true,
     )
 
     init {
@@ -111,7 +109,7 @@ class WeeklyDataViewModel : BaseViewModel() {
             return
         }
         _currentPeriod.value = period
-        loadWeeklyData() // Ricarica i dati per il nuovo periodo
+        loadWeeklyData()
     }
 
     fun loadWeeklyData() {
@@ -134,29 +132,108 @@ class WeeklyDataViewModel : BaseViewModel() {
         }
     }
 
-    fun refreshData() {
-        checkUserAuthentication()
-    }
-
     fun clearError() {
         _errorMessage.value = null
     }
 
+    private fun getMondayOfCurrentWeek(calendar: Calendar): Calendar {
+        val mondayCalendar = calendar.clone() as Calendar
+        val dayOfWeek = mondayCalendar.get(Calendar.DAY_OF_WEEK)
+        // Calendar: DOM=1, LUN=2, ..., SAB=7
+        val diff = if (dayOfWeek == Calendar.MONDAY) 0 else (dayOfWeek + 6) % 7
+        mondayCalendar.add(Calendar.DAY_OF_MONTH, -diff)
+        return mondayCalendar
+    }
+
     private fun loadDailyData(userId: String) {
+        // Tutto come prima, ma senza la funzione finalizeWeeklyData() annidata
+
+        // Variabili temporanee per raccogliere i dati
         val calendar = Calendar.getInstance()
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        dateFormat.timeZone = calendar.timeZone
 
-        // Trova l'inizio della settimana (lunedì)
-        calendar.firstDayOfWeek = Calendar.MONDAY
-        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        val weekStart = getMondayOfCurrentWeek(calendar)
+        val weekStartDate = dateFormat.format(weekStart.time)
 
-        val weekStartDate = dateFormat.format(calendar.time)
-        val weekStart = calendar.clone() as Calendar
+        val weekEnd = weekStart.clone() as Calendar
+        weekEnd.add(Calendar.DAY_OF_MONTH, 6)
+        val weekEndDate = dateFormat.format(weekEnd.time)
 
-        // Fine settimana (domenica)
-        calendar.add(Calendar.DAY_OF_WEEK, 6)
-        val weekEndDate = dateFormat.format(calendar.time)
+        // Map temporaneo per salvare i dati
+        val tempStudyTimeMap = mutableMapOf<String, Float>()
+        val tempBreakTimeMap = mutableMapOf<String, Float>()
+        val tempTotalTimeMap = mutableMapOf<String, Float>()
+        val tempSessionsMap = mutableMapOf<String, Int>()
 
+        var daysProcessed = 0
+
+        for (i in 0..6) {
+            val currentDay = weekStart.clone() as Calendar
+            currentDay.add(Calendar.DAY_OF_MONTH, i)
+            val currentDate = dateFormat.format(currentDay.time)
+
+            firestore.collection("users")
+                .document(userId)
+                .collection("studyData")
+                .document(currentDate)
+                .get()
+                .addOnSuccessListener { document ->
+                    val studyTimeMinutes = document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
+                    val breakTimeMinutes = document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
+                    val sessions = document.getLong("sessionsCompleted")?.toInt() ?: 0
+
+                    tempStudyTimeMap[currentDate] = studyTimeMinutes
+                    tempBreakTimeMap[currentDate] = breakTimeMinutes
+                    tempTotalTimeMap[currentDate] = studyTimeMinutes + breakTimeMinutes
+                    tempSessionsMap[currentDate] = sessions
+
+                    daysProcessed++
+                    if (daysProcessed == 7) {
+                        finalizeWeeklyData(
+                            tempStudyTimeMap,
+                            tempBreakTimeMap,
+                            tempTotalTimeMap,
+                            tempSessionsMap,
+                            weekStart,
+                            weekStartDate,
+                            weekEndDate
+                        )
+                    }
+                }
+                .addOnFailureListener {
+                    tempStudyTimeMap[currentDate] = 0f
+                    tempBreakTimeMap[currentDate] = 0f
+                    tempTotalTimeMap[currentDate] = 0f
+                    tempSessionsMap[currentDate] = 0
+
+                    daysProcessed++
+                    if (daysProcessed == 7) {
+                        finalizeWeeklyData(
+                            tempStudyTimeMap,
+                            tempBreakTimeMap,
+                            tempTotalTimeMap,
+                            tempSessionsMap,
+                            weekStart,
+                            weekStartDate,
+                            weekEndDate
+                        )
+                        _errorMessage.value = "Errore nel caricamento di alcuni dati"
+                    }
+                }
+        }
+    }
+
+    private fun finalizeWeeklyData(
+        tempStudyTimeMap: Map<String, Float>,
+        tempBreakTimeMap: Map<String, Float>,
+        tempTotalTimeMap: Map<String, Float>,
+        tempSessionsMap: Map<String, Int>,
+        weekStart: Calendar,
+        weekStartDate: String,
+        weekEndDate: String
+    ) {
+        val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val dailyStudyTime = mutableListOf<Float>()
         val dailyBreakTime = mutableListOf<Float>()
         val dailyTotalTime = mutableListOf<Float>()
@@ -165,79 +242,39 @@ class WeeklyDataViewModel : BaseViewModel() {
         var totalStudy = 0
         var totalBreak = 0
         var totalSessions = 0
-        var daysProcessed = 0
 
-        // Carica i dati per ogni giorno della settimana
         for (i in 0..6) {
-            val currentDate = dateFormat.format(weekStart.time)
+            val day = weekStart.clone() as Calendar
+            day.add(Calendar.DAY_OF_MONTH, i)
+            val dateKey = dateFormat.format(day.time)
 
-            firestore.collection("users")
-                .document(userId)
-                .collection("studyData")
-                .document(currentDate)
-                .get()
-                .addOnSuccessListener { document ->
-                    val studyTime = document.getLong("activeStudyTime")?.toFloat() ?: 0f
-                    val breakTime = document.getLong("breakTime")?.toFloat() ?: 0f
-                    val sessions = document.getLong("sessionsCompleted")?.toInt() ?: 0
+            val study = tempStudyTimeMap[dateKey] ?: 0f
+            val brk = tempBreakTimeMap[dateKey] ?: 0f
+            val tot = tempTotalTimeMap[dateKey] ?: 0f
+            val sess = tempSessionsMap[dateKey] ?: 0
 
-                    dailyStudyTime.add(studyTime)
-                    dailyBreakTime.add(breakTime)
-                    dailyTotalTime.add(studyTime + breakTime)
-                    dailySessions.add(sessions)
+            dailyStudyTime.add(study)
+            dailyBreakTime.add(brk)
+            dailyTotalTime.add(tot)
+            dailySessions.add(sess)
 
-                    totalStudy += studyTime.toInt()
-                    totalBreak += breakTime.toInt()
-                    totalSessions += sessions
-
-                    daysProcessed++
-
-                    // Quando tutti i giorni sono stati processati
-                    if (daysProcessed == 7) {
-                        updateWeeklyStatistics(
-                            totalStudy = totalStudy,
-                            totalBreak = totalBreak,
-                            totalSessions = totalSessions,
-                            dailyStudyTime = dailyStudyTime,
-                            dailyBreakTime = dailyBreakTime,
-                            dailyTotalTime = dailyTotalTime,
-                            dailySessions = dailySessions,
-                            weekStartDate = weekStartDate,
-                            weekEndDate = weekEndDate
-                        )
-                        _isLoading.value = false
-                    }
-                }
-                .addOnFailureListener { exception ->
-                    // In caso di errore, aggiungi valori zero
-                    dailyStudyTime.add(0f)
-                    dailyBreakTime.add(0f)
-                    dailyTotalTime.add(0f)
-                    dailySessions.add(0)
-
-                    daysProcessed++
-
-                    if (daysProcessed == 7) {
-                        updateWeeklyStatistics(
-                            totalStudy = totalStudy,
-                            totalBreak = totalBreak,
-                            totalSessions = totalSessions,
-                            dailyStudyTime = dailyStudyTime,
-                            dailyBreakTime = dailyBreakTime,
-                            dailyTotalTime = dailyTotalTime,
-                            dailySessions = dailySessions,
-                            weekStartDate = weekStartDate,
-                            weekEndDate = weekEndDate
-                        )
-                        _isLoading.value = false
-
-                        // Log dell'errore per debug
-                        _errorMessage.value = "Errore nel caricamento di alcuni dati: ${exception.message}"
-                    }
-                }
-
-            weekStart.add(Calendar.DAY_OF_MONTH, 1)
+            totalStudy += study.toInt()
+            totalBreak += brk.toInt()
+            totalSessions += sess
         }
+
+        updateWeeklyStatistics(
+            totalStudy = totalStudy,
+            totalBreak = totalBreak,
+            totalSessions = totalSessions,
+            dailyStudyTime = dailyStudyTime,
+            dailyBreakTime = dailyBreakTime,
+            dailyTotalTime = dailyTotalTime,
+            dailySessions = dailySessions,
+            weekStartDate = weekStartDate,
+            weekEndDate = weekEndDate
+        )
+        _isLoading.value = false
     }
 
     private fun loadWeeklyData(userId: String) {
@@ -254,19 +291,21 @@ class WeeklyDataViewModel : BaseViewModel() {
         var totalBreak = 0
         var totalSessions = 0
 
-        // Carica i dati delle ultime 4 settimane
         for (weekOffset in 0..3) {
             val weekCalendar = Calendar.getInstance()
             weekCalendar.add(Calendar.WEEK_OF_YEAR, -weekOffset)
+
+            // Imposta correttamente l'inizio della settimana
             weekCalendar.firstDayOfWeek = Calendar.MONDAY
-            weekCalendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+            val dayOfWeek = weekCalendar.get(Calendar.DAY_OF_WEEK)
+            val daysFromMonday = if (dayOfWeek == Calendar.SUNDAY) 6 else dayOfWeek - Calendar.MONDAY
+            weekCalendar.add(Calendar.DAY_OF_MONTH, -daysFromMonday)
 
             var weekStudy = 0f
             var weekBreak = 0f
             var weekSessions = 0
             var daysInWeekProcessed = 0
 
-            // Per ogni giorno della settimana
             for (dayOffset in 0..6) {
                 val dayCalendar = weekCalendar.clone() as Calendar
                 dayCalendar.add(Calendar.DAY_OF_MONTH, dayOffset)
@@ -278,12 +317,12 @@ class WeeklyDataViewModel : BaseViewModel() {
                     .document(currentDate)
                     .get()
                     .addOnSuccessListener { document ->
-                        val studyTime = document.getLong("activeStudyTime")?.toFloat() ?: 0f
-                        val breakTime = document.getLong("breakTime")?.toFloat() ?: 0f
+                        val studyTimeMinutes = document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
+                        val breakTimeMinutes = document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
                         val sessions = document.getLong("sessionsCompleted")?.toInt() ?: 0
 
-                        weekStudy += studyTime
-                        weekBreak += breakTime
+                        weekStudy += studyTimeMinutes
+                        weekBreak += breakTimeMinutes
                         weekSessions += sessions
 
                         daysInWeekProcessed++
@@ -294,7 +333,7 @@ class WeeklyDataViewModel : BaseViewModel() {
                             weeklyTotalTime.add(weekStudy + weekBreak)
                             weeklySessions.add(weekSessions)
 
-                            if (weekOffset == 0) { // Settimana corrente
+                            if (weekOffset == 0) {
                                 totalStudy = weekStudy.toInt()
                                 totalBreak = weekBreak.toInt()
                                 totalSessions = weekSessions
@@ -307,7 +346,7 @@ class WeeklyDataViewModel : BaseViewModel() {
                                     totalStudy = totalStudy,
                                     totalBreak = totalBreak,
                                     totalSessions = totalSessions,
-                                    weeklyStudyTime = weeklyStudyTime.reversed(), // Ordine cronologico
+                                    weeklyStudyTime = weeklyStudyTime.reversed(),
                                     weeklyBreakTime = weeklyBreakTime.reversed(),
                                     weeklyTotalTime = weeklyTotalTime.reversed(),
                                     weeklySessions = weeklySessions.reversed()
@@ -362,7 +401,6 @@ class WeeklyDataViewModel : BaseViewModel() {
         var totalBreak = 0
         var totalSessions = 0
 
-        // Carica i dati degli ultimi 6 mesi
         for (monthOffset in 0..5) {
             val monthCalendar = Calendar.getInstance()
             monthCalendar.add(Calendar.MONTH, -monthOffset)
@@ -375,7 +413,6 @@ class WeeklyDataViewModel : BaseViewModel() {
             var monthSessions = 0
             var daysInMonthProcessed = 0
 
-            // Per ogni giorno del mese
             for (day in 1..lastDayOfMonth) {
                 val dayCalendar = monthCalendar.clone() as Calendar
                 dayCalendar.set(Calendar.DAY_OF_MONTH, day)
@@ -387,12 +424,12 @@ class WeeklyDataViewModel : BaseViewModel() {
                     .document(currentDate)
                     .get()
                     .addOnSuccessListener { document ->
-                        val studyTime = document.getLong("activeStudyTime")?.toFloat() ?: 0f
-                        val breakTime = document.getLong("breakTime")?.toFloat() ?: 0f
+                        val studyTimeMinutes = document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
+                        val breakTimeMinutes = document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
                         val sessions = document.getLong("sessionsCompleted")?.toInt() ?: 0
 
-                        monthStudy += studyTime
-                        monthBreak += breakTime
+                        monthStudy += studyTimeMinutes
+                        monthBreak += breakTimeMinutes
                         monthSessions += sessions
 
                         daysInMonthProcessed++
@@ -403,7 +440,7 @@ class WeeklyDataViewModel : BaseViewModel() {
                             monthlyTotalTime.add(monthStudy + monthBreak)
                             monthlySessions.add(monthSessions)
 
-                            if (monthOffset == 0) { // Mese corrente
+                            if (monthOffset == 0) {
                                 totalStudy = monthStudy.toInt()
                                 totalBreak = monthBreak.toInt()
                                 totalSessions = monthSessions
@@ -416,7 +453,7 @@ class WeeklyDataViewModel : BaseViewModel() {
                                     totalStudy = totalStudy,
                                     totalBreak = totalBreak,
                                     totalSessions = totalSessions,
-                                    monthlyStudyTime = monthlyStudyTime.reversed(), // Ordine cronologico
+                                    monthlyStudyTime = monthlyStudyTime.reversed(),
                                     monthlyBreakTime = monthlyBreakTime.reversed(),
                                     monthlyTotalTime = monthlyTotalTime.reversed(),
                                     monthlySessions = monthlySessions.reversed()
@@ -468,8 +505,8 @@ class WeeklyDataViewModel : BaseViewModel() {
         weekStartDate: String,
         weekEndDate: String
     ) {
-        val weeklyStudyGoal = 1260 // 3 ore al giorno * 7 giorni (in minuti)
-        val weeklyBreakGoal = 420  // 1 ora al giorno * 7 giorni (in minuti)
+        val weeklyStudyGoal = 1260
+        val weeklyBreakGoal = 420
 
         val studyProgress = if (weeklyStudyGoal > 0) {
             totalStudy.toFloat() / weeklyStudyGoal.toFloat()
@@ -479,13 +516,17 @@ class WeeklyDataViewModel : BaseViewModel() {
             totalBreak.toFloat() / weeklyBreakGoal.toFloat()
         } else 0f
 
-        val averageStudyPerDay = totalStudy / 7f
-        val averageBreakPerDay = totalBreak / 7f
+        val averageStudyPerDay = if (dailyStudyTime.isNotEmpty()) {
+            dailyStudyTime.average().toFloat()
+        } else 0f
 
-        // Trova il giorno più produttivo
+        val averageBreakPerDay = if (dailyBreakTime.isNotEmpty()) {
+            dailyBreakTime.average().toFloat()
+        } else 0f
+
         val dayNames = listOf("Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato", "Domenica")
         val maxStudyIndex = dailyStudyTime.withIndex().maxByOrNull { it.value }?.index ?: 0
-        val mostProductiveDay = if (dailyStudyTime[maxStudyIndex] > 0) dayNames[maxStudyIndex] else "Nessuno"
+        val mostProductiveDay = if (dailyStudyTime.getOrNull(maxStudyIndex) ?: 0f > 0) dayNames[maxStudyIndex] else "Nessuno"
 
         val hasData = totalStudy > 0 || totalBreak > 0 || totalSessions > 0
 
@@ -520,7 +561,6 @@ class WeeklyDataViewModel : BaseViewModel() {
         weeklyTotalTime: List<Float>,
         weeklySessions: List<Int>
     ) {
-        // Calcola trend rispetto alla settimana precedente
         val currentWeekStudy = weeklyStudyTime.lastOrNull() ?: 0f
         val previousWeekStudy = weeklyStudyTime.getOrNull(weeklyStudyTime.size - 2) ?: 0f
         val trendPercentage = if (previousWeekStudy > 0) {
@@ -556,7 +596,6 @@ class WeeklyDataViewModel : BaseViewModel() {
         monthlyTotalTime: List<Float>,
         monthlySessions: List<Int>
     ) {
-        // Calcola trend rispetto al mese precedente
         val currentMonthStudy = monthlyStudyTime.lastOrNull() ?: 0f
         val previousMonthStudy = monthlyStudyTime.getOrNull(monthlyStudyTime.size - 2) ?: 0f
         val trendPercentage = if (previousMonthStudy > 0) {
