@@ -4,6 +4,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.fitjourney.util.viewModel.BaseViewModel
+import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.tasks.Task
+import com.google.firebase.firestore.DocumentSnapshot
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.text.SimpleDateFormat
@@ -277,19 +280,21 @@ class WeeklyDataViewModel : BaseViewModel() {
         _isLoading.value = false
     }
 
+    // Classe di supporto per i dati della settimana (definita a livello di classe)
+    data class WeekDataHelper(
+        var studyTime: Float = 0f,
+        var breakTime: Float = 0f,
+        var sessions: Int = 0,
+        var daysProcessed: Int = 0
+    )
+
     private fun loadWeeklyData(userId: String) {
         val calendar = Calendar.getInstance()
         val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
-        val weeklyStudyTime = mutableListOf<Float>()
-        val weeklyBreakTime = mutableListOf<Float>()
-        val weeklyTotalTime = mutableListOf<Float>()
-        val weeklySessions = mutableListOf<Int>()
-
-        var weeksProcessed = 0
-        var totalStudy = 0
-        var totalBreak = 0
-        var totalSessions = 0
+        // Usa una struttura dati ordinata per mantenere l'ordine delle settimane
+        val weeklyResults = mutableMapOf<Int, WeekDataHelper>()
+        var weeksCompleted = 0
 
         for (weekOffset in 0..3) {
             val weekCalendar = Calendar.getInstance()
@@ -301,88 +306,103 @@ class WeeklyDataViewModel : BaseViewModel() {
             val daysFromMonday = if (dayOfWeek == Calendar.SUNDAY) 6 else dayOfWeek - Calendar.MONDAY
             weekCalendar.add(Calendar.DAY_OF_MONTH, -daysFromMonday)
 
-            var weekStudy = 0f
-            var weekBreak = 0f
-            var weekSessions = 0
-            var daysInWeekProcessed = 0
+            // Inizializza i dati per questa settimana
+            weeklyResults[weekOffset] = WeekDataHelper()
+
+            // Usa Tasks.whenAllComplete per aspettare che tutti i giorni siano processati
+            val dayTasks = mutableListOf<Task<DocumentSnapshot>>()
 
             for (dayOffset in 0..6) {
                 val dayCalendar = weekCalendar.clone() as Calendar
                 dayCalendar.add(Calendar.DAY_OF_MONTH, dayOffset)
                 val currentDate = dateFormat.format(dayCalendar.time)
 
-                firestore.collection("users")
+                val task = firestore.collection("users")
                     .document(userId)
                     .collection("studyData")
                     .document(currentDate)
                     .get()
-                    .addOnSuccessListener { document ->
+
+                dayTasks.add(task)
+            }
+
+            // Processa tutti i giorni di questa settimana
+            Tasks.whenAllComplete(dayTasks).addOnCompleteListener { _ ->
+                val weekData = weeklyResults[weekOffset]!!
+
+                // Itera sui task originali, non sul risultato di whenAllComplete
+                for (task in dayTasks) {
+                    if (task.isSuccessful) {
+                        val document = task.result
                         val studyTimeMinutes = document.getLong("activeStudyTime")?.toFloat()?.div(60) ?: 0f
                         val breakTimeMinutes = document.getLong("breakTime")?.toFloat()?.div(60) ?: 0f
                         val sessions = document.getLong("sessionsCompleted")?.toInt() ?: 0
 
-                        weekStudy += studyTimeMinutes
-                        weekBreak += breakTimeMinutes
-                        weekSessions += sessions
-
-                        daysInWeekProcessed++
-
-                        if (daysInWeekProcessed == 7) {
-                            weeklyStudyTime.add(weekStudy)
-                            weeklyBreakTime.add(weekBreak)
-                            weeklyTotalTime.add(weekStudy + weekBreak)
-                            weeklySessions.add(weekSessions)
-
-                            if (weekOffset == 0) {
-                                totalStudy = weekStudy.toInt()
-                                totalBreak = weekBreak.toInt()
-                                totalSessions = weekSessions
-                            }
-
-                            weeksProcessed++
-
-                            if (weeksProcessed == 4) {
-                                updateWeeklyStatisticsForWeeklyView(
-                                    totalStudy = totalStudy,
-                                    totalBreak = totalBreak,
-                                    totalSessions = totalSessions,
-                                    weeklyStudyTime = weeklyStudyTime.reversed(),
-                                    weeklyBreakTime = weeklyBreakTime.reversed(),
-                                    weeklyTotalTime = weeklyTotalTime.reversed(),
-                                    weeklySessions = weeklySessions.reversed()
-                                )
-                                _isLoading.value = false
-                            }
-                        }
+                        weekData.studyTime += studyTimeMinutes
+                        weekData.breakTime += breakTimeMinutes
+                        weekData.sessions += sessions
                     }
-                    .addOnFailureListener { exception ->
-                        daysInWeekProcessed++
-                        if (daysInWeekProcessed == 7) {
-                            weeklyStudyTime.add(weekStudy)
-                            weeklyBreakTime.add(weekBreak)
-                            weeklyTotalTime.add(weekStudy + weekBreak)
-                            weeklySessions.add(weekSessions)
+                    weekData.daysProcessed++
+                }
 
-                            weeksProcessed++
+                weeksCompleted++
 
-                            if (weeksProcessed == 4) {
-                                updateWeeklyStatisticsForWeeklyView(
-                                    totalStudy = totalStudy,
-                                    totalBreak = totalBreak,
-                                    totalSessions = totalSessions,
-                                    weeklyStudyTime = weeklyStudyTime.reversed(),
-                                    weeklyBreakTime = weeklyBreakTime.reversed(),
-                                    weeklyTotalTime = weeklyTotalTime.reversed(),
-                                    weeklySessions = weeklySessions.reversed()
-                                )
-                                _isLoading.value = false
+                // Quando tutte le 4 settimane sono complete, aggiorna l'UI
+                if (weeksCompleted == 4) {
+                    processWeeklyResults(weeklyResults)
+                }
+            }
+        }
+    }
 
-                                if (totalStudy == 0 && totalBreak == 0 && totalSessions == 0) {
-                                    _errorMessage.value = "Nessun dato trovato per questo periodo"
-                                }
-                            }
-                        }
-                    }
+    private fun processWeeklyResults(weeklyResults: Map<Int, WeekDataHelper>) {
+        // Ordina i risultati per weekOffset (0, 1, 2, 3)
+        val sortedResults = weeklyResults.toSortedMap()
+
+        val weeklyStudyTime = mutableListOf<Float>()
+        val weeklyBreakTime = mutableListOf<Float>()
+        val weeklyTotalTime = mutableListOf<Float>()
+        val weeklySessions = mutableListOf<Int>()
+
+        var totalStudy = 0
+        var totalBreak = 0
+        var totalSessions = 0
+
+        sortedResults.forEach { (weekOffset, weekData) ->
+            weeklyStudyTime.add(weekData.studyTime)
+            weeklyBreakTime.add(weekData.breakTime)
+            weeklyTotalTime.add(weekData.studyTime + weekData.breakTime)
+            weeklySessions.add(weekData.sessions)
+
+            // I dati della settimana corrente (weekOffset == 0)
+            if (weekOffset == 0) {
+                totalStudy = weekData.studyTime.toInt()
+                totalBreak = weekData.breakTime.toInt()
+                totalSessions = weekData.sessions
+            }
+        }
+
+        // Inverti le liste per avere l'ordine corretto (settimana più vecchia prima)
+        updateWeeklyStatisticsForWeeklyView(
+            totalStudy = totalStudy,
+            totalBreak = totalBreak,
+            totalSessions = totalSessions,
+            weeklyStudyTime = weeklyStudyTime.reversed(),
+            weeklyBreakTime = weeklyBreakTime.reversed(),
+            weeklyTotalTime = weeklyTotalTime.reversed(),
+            weeklySessions = weeklySessions.reversed()
+        )
+
+        _isLoading.value = false
+
+        // Controlla se non ci sono dati
+        if (totalStudy == 0 && totalBreak == 0 && totalSessions == 0) {
+            val hasAnyData = weeklyStudyTime.any { it > 0 } ||
+                    weeklyBreakTime.any { it > 0 } ||
+                    weeklySessions.any { it > 0 }
+
+            if (!hasAnyData) { 
+                _errorMessage.value = "Nessun dato trovato per questo periodo"
             }
         }
     }
