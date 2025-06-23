@@ -4,7 +4,6 @@ import android.app.Activity
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,12 +20,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fitjourney.R
 import com.example.fitjourney.ui.viewModel.AuthViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.common.api.ApiException
+import androidx.compose.material3.TextFieldDefaults
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,13 +53,9 @@ fun LoginScreen(
                     viewModel.signInWithGoogle(
                         token,
                         onSuccess = {
-                            // Carica i dati utente dopo il successo
                             viewModel.loadUserData()
-                            // Naviga al profilo pulendo lo stack
                             navController.navigate("profile") {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    inclusive = true
-                                }
+                                popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                 launchSingleTop = true
                             }
                         },
@@ -85,24 +82,27 @@ fun LoginScreen(
                 ).show()
             }
         } else {
-            // Gestisci altri codici di risultato
             when (result.resultCode) {
-                Activity.RESULT_CANCELED -> {
-                    // L'utente ha annullato il login
-                    Toast.makeText(context, "Accesso annullato", Toast.LENGTH_SHORT).show()
-                }
-                else -> {
-                    Toast.makeText(context, "Errore durante l'accesso", Toast.LENGTH_SHORT).show()
-                }
+                Activity.RESULT_CANCELED -> Toast.makeText(context, "Accesso annullato", Toast.LENGTH_SHORT).show()
+                else -> Toast.makeText(context, "Errore durante l'accesso", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Login") },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors()
+            TopAppBar(
+                title = {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Login",
+                            fontSize = 24.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF283593))
             )
         }
     ) { innerPadding ->
@@ -114,7 +114,6 @@ fun LoginScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Campo Email
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
@@ -127,13 +126,11 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo Password
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Password") },
-                visualTransformation = if (passwordVisible) VisualTransformation.None
-                else PasswordVisualTransformation(),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading,
                 singleLine = true,
@@ -143,10 +140,8 @@ fun LoginScreen(
                         enabled = !isLoading
                     ) {
                         Icon(
-                            imageVector = if (passwordVisible) Icons.Default.Visibility
-                            else Icons.Default.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Nascondi password"
-                            else "Mostra password"
+                            imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (passwordVisible) "Nascondi password" else "Mostra password"
                         )
                     }
                 }
@@ -154,7 +149,6 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Pulsante Login
             Button(
                 onClick = {
                     if (email.isNotBlank() && password.isNotBlank()) {
@@ -163,22 +157,16 @@ fun LoginScreen(
                             password,
                             onSuccess = {
                                 navController.navigate("profile") {
-                                    popUpTo(navController.graph.startDestinationId) {
-                                        inclusive = true
-                                    }
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
                                     launchSingleTop = true
                                 }
                             },
                             onFailure = { exception ->
                                 val errorMessage = when {
-                                    exception.message?.contains("invalid-email") == true ->
-                                        "Email non valida"
-                                    exception.message?.contains("user-not-found") == true ->
-                                        "Utente non trovato"
-                                    exception.message?.contains("wrong-password") == true ->
-                                        "Password non corretta"
-                                    exception.message?.contains("network") == true ->
-                                        "Errore di connessione"
+                                    exception.message?.contains("invalid-email") == true -> "Email non valida"
+                                    exception.message?.contains("user-not-found") == true -> "Utente non trovato"
+                                    exception.message?.contains("wrong-password") == true -> "Password non corretta"
+                                    exception.message?.contains("network") == true -> "Errore di connessione"
                                     else -> "Credenziali non valide"
                                 }
                                 Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
@@ -188,23 +176,26 @@ fun LoginScreen(
                         Toast.makeText(context, "Inserisci email e password", Toast.LENGTH_SHORT).show()
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && email.isNotBlank() && password.isNotBlank()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                enabled = !isLoading && email.isNotBlank() && password.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF283593)),
+                shape = MaterialTheme.shapes.medium
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(24.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = Color.White
                     )
                 } else {
-                    Text("Accedi", style = MaterialTheme.typography.labelLarge)
+                    Text("Accedi", fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = Color.White)
                 }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Divider "Oppure"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -212,35 +203,35 @@ fun LoginScreen(
                 Divider(
                     modifier = Modifier.weight(1f),
                     thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    color = Color(0xFF283593).copy(alpha = 0.3f)
                 )
                 Text(
-                    text = "OPPURE",
+                    "OPPURE",
                     modifier = Modifier.padding(horizontal = 16.dp),
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = Color(0xFF283593)
                 )
                 Divider(
                     modifier = Modifier.weight(1f),
                     thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    color = Color(0xFF283593).copy(alpha = 0.3f)
                 )
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Pulsante Google
             OutlinedButton(
                 onClick = {
                     if (!isLoading) {
                         googleAuthLauncher.launch(googleSignInClient.signInIntent)
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
                 enabled = !isLoading,
-                border = ButtonDefaults.outlinedButtonBorder.copy(
-                    width = 1.dp,
-                )
+                border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp),
+                shape = MaterialTheme.shapes.medium
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -250,7 +241,7 @@ fun LoginScreen(
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.primary
+                            color = Color(0xFF283593)
                         )
                     } else {
                         Icon(
@@ -263,22 +254,24 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         if (isLoading) "Accesso in corso..." else "Accedi con Google",
-                        style = MaterialTheme.typography.labelLarge
+                        fontSize = 16.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        color = Color(0xFF283593)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Link a Registrazione
             TextButton(
                 onClick = { if (!isLoading) navController.navigate("register") },
                 enabled = !isLoading
             ) {
                 Text(
                     "Non hai un account? Registrati",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
+                    fontSize = 14.sp,
+                    color = Color(0xFF283593),
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                 )
             }
         }

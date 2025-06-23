@@ -14,10 +14,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.navigation.NavController
@@ -53,10 +54,9 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
     var editedUserData by remember(userData) { mutableStateOf(userData) }
     var showImagePicker by remember { mutableStateOf(false) }
     var tempImageUri by remember { mutableStateOf<Uri?>(null) }
-    var isSaving by remember { mutableStateOf(false) } // Stato per il caricamento
-    var showDeleteDialog by remember { mutableStateOf(false) } // Dialog conferma eliminazione
-    var isDeleting by remember { mutableStateOf(false) } // Stato per eliminazione account
-    // Stati per la riautenticazione
+    var isSaving by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var isDeleting by remember { mutableStateOf(false) }
     var showReauthDialog by remember { mutableStateOf(false) }
     var passwordForReauth by remember { mutableStateOf("") }
     var passwordError by remember { mutableStateOf("") }
@@ -64,12 +64,10 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
     val calendar = remember { Calendar.getInstance() }
     val dateFormatter = remember { SimpleDateFormat("dd/MM/yyyy", Locale.ITALY) }
 
-    // Aggiorna editedUserData quando userData cambia
     LaunchedEffect(userData) {
         editedUserData = userData
     }
 
-    // Funzione per salvare l'immagine permanentemente
     fun saveImagePermanently(sourceUri: Uri): String? {
         return try {
             val fileName = "profile_image_${System.currentTimeMillis()}.jpg"
@@ -92,7 +90,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         }
     }
 
-    // Funzione per eliminare la vecchia immagine
     fun deleteOldImage(imagePath: String) {
         try {
             if (imagePath.startsWith("/") && File(imagePath).exists()) {
@@ -103,14 +100,12 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         }
     }
 
-    // Launcher per selezione immagine dalla galleria
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let { selectedUri ->
             val permanentPath = saveImagePermanently(selectedUri)
             permanentPath?.let { path ->
-                // Elimina la vecchia immagine se esiste
                 if (editedUserData.photoUrl.isNotEmpty() && editedUserData.photoUrl.startsWith("/")) {
                     deleteOldImage(editedUserData.photoUrl)
                 }
@@ -122,7 +117,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         }
     }
 
-    // Launcher per scattare foto
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
@@ -130,7 +124,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
             tempImageUri?.let { tempUri ->
                 val permanentPath = saveImagePermanently(tempUri)
                 permanentPath?.let { path ->
-                    // Elimina la vecchia immagine se esiste
                     if (editedUserData.photoUrl.isNotEmpty() && editedUserData.photoUrl.startsWith("/")) {
                         deleteOldImage(editedUserData.photoUrl)
                     }
@@ -140,7 +133,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                     Toast.makeText(context, "Errore nel salvare l'immagine", Toast.LENGTH_SHORT).show()
                 }
 
-                // Elimina il file temporaneo
                 try {
                     File(tempUri.path ?: "").delete()
                 } catch (e: Exception) {
@@ -150,7 +142,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         }
     }
 
-    // Launcher per permessi fotocamera
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -167,7 +158,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         }
     }
 
-    // Funzione per mostrare il DatePicker
     val showDatePicker = {
         DatePickerDialog(
             context,
@@ -182,7 +172,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         ).show()
     }
 
-    // Carica i dati utente all'avvio
     LaunchedEffect(viewModel.isLoggedIn()) {
         if (viewModel.isLoggedIn()) {
             viewModel.loadUserData()
@@ -192,407 +181,499 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState())
+            .background(Color(0xFFF5F5F5))
     ) {
+        TopAppBar(
+            title = {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("Profilo", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF283593))
+        )
+
         if (viewModel.isLoggedIn()) {
-            // Header con foto profilo e benvenuto
-            Row(
+            LazyColumn(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 24.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Foto profilo
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                        .clickable { showImagePicker = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (editedUserData.photoUrl.isNotEmpty()) {
-                        AsyncImage(
-                            model = if (editedUserData.photoUrl.startsWith("/")) {
-                                File(editedUserData.photoUrl)
-                            } else {
-                                editedUserData.photoUrl
-                            },
-                            contentDescription = "Foto profilo",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Aggiungi foto",
-                            modifier = Modifier.size(40.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    // Icona modifica
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Modifica foto",
-                        modifier = Modifier
-                            .size(20.dp)
-                            .align(Alignment.BottomEnd)
-                            .background(
-                                MaterialTheme.colorScheme.primary,
-                                CircleShape
-                            )
-                            .padding(2.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column {
-                    Text(
-                        text = "Benvenuto!",
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                    Text(
-                        text = "${userData.nome} ${userData.cognome}".takeIf { it.isNotBlank() }
-                            ?: viewModel.getCurrentUserName() ?: "Utente",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            // Campi dati personali
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Dati Personali",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-
-                    // Nome
-                    OutlinedTextField(
-                        value = editedUserData.nome,
-                        onValueChange = {
-                            editedUserData = editedUserData.copy(nome = it)
-                            isEditing = true
-                        },
-                        label = { Text("Nome") },
+                item {
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSaving
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Cognome
-                    OutlinedTextField(
-                        value = editedUserData.cognome,
-                        onValueChange = {
-                            editedUserData = editedUserData.copy(cognome = it)
-                            isEditing = true
-                        },
-                        label = { Text("Cognome") },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSaving
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Data di nascita
-                    OutlinedTextField(
-                        value = editedUserData.dataNascita,
-                        onValueChange = { },
-                        label = { Text("Data di nascita") },
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { if (!isSaving) showDatePicker() },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.DateRange,
-                                contentDescription = "Seleziona data",
-                                modifier = Modifier.clickable { if (!isSaving) showDatePicker() }
-                            )
-                        },
-                        enabled = !isSaving
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Sesso
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            text = "Sesso",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
+                            Box(
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .border(3.dp, Color(0xFF283593), CircleShape)
+                                    .clickable { showImagePicker = true },
+                                contentAlignment = Alignment.Center
                             ) {
-                                RadioButton(
-                                    selected = editedUserData.sesso == "Maschio",
-                                    onClick = {
-                                        if (!isSaving) {
-                                            editedUserData = editedUserData.copy(sesso = "Maschio")
-                                            isEditing = true
-                                        }
-                                    },
-                                    enabled = !isSaving
-                                )
-                                Text(
-                                    text = "Maschio",
+                                if (editedUserData.photoUrl.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = if (editedUserData.photoUrl.startsWith("/")) {
+                                            File(editedUserData.photoUrl)
+                                        } else {
+                                            editedUserData.photoUrl
+                                        },
+                                        contentDescription = "Foto profilo",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Aggiungi foto",
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Modifica foto",
                                     modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .clickable {
-                                            if (!isSaving) {
-                                                editedUserData = editedUserData.copy(sesso = "Maschio")
-                                                isEditing = true
-                                            }
-                                        }
+                                        .size(24.dp)
+                                        .align(Alignment.BottomEnd)
+                                        .background(
+                                            Color(0xFF283593),
+                                            CircleShape
+                                        )
+                                        .padding(4.dp),
+                                    tint = Color.White
                                 )
                             }
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = editedUserData.sesso == "Femmina",
-                                    onClick = {
-                                        if (!isSaving) {
-                                            editedUserData = editedUserData.copy(sesso = "Femmina")
-                                            isEditing = true
-                                        }
-                                    },
-                                    enabled = !isSaving
-                                )
-                                Text(
-                                    text = "Femmina",
-                                    modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .clickable {
-                                            if (!isSaving) {
-                                                editedUserData = editedUserData.copy(sesso = "Femmina")
-                                                isEditing = true
-                                            }
-                                        }
-                                )
-                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Text(
+                                text = "${userData.nome} ${userData.cognome}".takeIf { it.isNotBlank() }
+                                    ?: viewModel.getCurrentUserName() ?: "Utente",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF283593)
+                            )
+
+                            Text(
+                                text = userData.email,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF607D8B)
+                            )
                         }
                     }
+                }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Email
-                    OutlinedTextField(
-                        value = editedUserData.email,
-                        onValueChange = {
-                            editedUserData = editedUserData.copy(email = it)
-                            isEditing = true
-                        },
-                        label = { Text("Email") },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSaving
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Telefono
-                    OutlinedTextField(
-                        value = editedUserData.telefono,
-                        onValueChange = {
-                            editedUserData = editedUserData.copy(telefono = it)
-                            isEditing = true
-                        },
-                        label = { Text("Telefono") },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSaving
+                item {
+                    Text(
+                        "Informazioni Personali",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF283593)
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = editedUserData.nome,
+                                onValueChange = {
+                                    editedUserData = editedUserData.copy(nome = it)
+                                    isEditing = true
+                                },
+                                label = { Text("Nome") },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isSaving,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF283593),
+                                    focusedLabelColor = Color(0xFF283593)
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.Person, contentDescription = "Nome")
+                                }
+                            )
 
-            // Pulsanti Salva/Annulla
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        isSaving = true
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                        // Timeout dopo 30 secondi
-                        val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
-                        val timeoutRunnable = Runnable {
-                            if (isSaving) {
-                                isSaving = false
-                                Toast.makeText(context, "Timeout: operazione troppo lenta. Riprova.", Toast.LENGTH_LONG).show()
+                            OutlinedTextField(
+                                value = editedUserData.cognome,
+                                onValueChange = {
+                                    editedUserData = editedUserData.copy(cognome = it)
+                                    isEditing = true
+                                },
+                                label = { Text("Cognome") },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isSaving,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF283593),
+                                    focusedLabelColor = Color(0xFF283593)
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.PersonOutline, contentDescription = "Cognome")
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = editedUserData.dataNascita,
+                                onValueChange = { },
+                                label = { Text("Data di nascita") },
+                                readOnly = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { if (!isSaving) showDatePicker() },
+                                enabled = !isSaving,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF283593),
+                                    focusedLabelColor = Color(0xFF283593)
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.DateRange, contentDescription = "Data di nascita")
+                                },
+                                trailingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.DateRange,
+                                        contentDescription = "Seleziona data",
+                                        modifier = Modifier.clickable { if (!isSaving) showDatePicker() }
+                                    )
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Text(
+                                    text = "Sesso",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF283593),
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = editedUserData.sesso == "Maschio",
+                                            onClick = {
+                                                if (!isSaving) {
+                                                    editedUserData = editedUserData.copy(sesso = "Maschio")
+                                                    isEditing = true
+                                                }
+                                            },
+                                            enabled = !isSaving,
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = Color(0xFF283593)
+                                            )
+                                        )
+                                        Text(
+                                            text = "Maschio",
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .clickable {
+                                                    if (!isSaving) {
+                                                        editedUserData = editedUserData.copy(sesso = "Maschio")
+                                                        isEditing = true
+                                                    }
+                                                }
+                                        )
+                                    }
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = editedUserData.sesso == "Femmina",
+                                            onClick = {
+                                                if (!isSaving) {
+                                                    editedUserData = editedUserData.copy(sesso = "Femmina")
+                                                    isEditing = true
+                                                }
+                                            },
+                                            enabled = !isSaving,
+                                            colors = RadioButtonDefaults.colors(
+                                                selectedColor = Color(0xFF283593)
+                                            )
+                                        )
+                                        Text(
+                                            text = "Femmina",
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .clickable {
+                                                    if (!isSaving) {
+                                                        editedUserData = editedUserData.copy(sesso = "Femmina")
+                                                        isEditing = true
+                                                    }
+                                                }
+                                        )
+                                    }
+                                }
                             }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = editedUserData.email,
+                                onValueChange = {
+                                    editedUserData = editedUserData.copy(email = it)
+                                    isEditing = true
+                                },
+                                label = { Text("Email") },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isSaving,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF283593),
+                                    focusedLabelColor = Color(0xFF283593)
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.Email, contentDescription = "Email")
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = editedUserData.telefono,
+                                onValueChange = {
+                                    editedUserData = editedUserData.copy(telefono = it)
+                                    isEditing = true
+                                },
+                                label = { Text("Telefono") },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !isSaving,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF283593),
+                                    focusedLabelColor = Color(0xFF283593)
+                                ),
+                                leadingIcon = {
+                                    Icon(Icons.Default.Phone, contentDescription = "Telefono")
+                                }
+                            )
                         }
-                        timeoutHandler.postDelayed(timeoutRunnable, 30000) // 30 secondi
+                    }
+                }
 
-                        viewModel.updateUserData(
-                            editedUserData,
-                            onSuccess = {
-                                timeoutHandler.removeCallbacks(timeoutRunnable)
-                                isSaving = false
-                                isEditing = false
-                                Toast.makeText(context, "Modifiche salvate con successo!", Toast.LENGTH_SHORT).show()
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                isSaving = true
+                                val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                                val timeoutRunnable = Runnable {
+                                    if (isSaving) {
+                                        isSaving = false
+                                        Toast.makeText(context, "Timeout: operazione troppo lenta. Riprova.", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                                timeoutHandler.postDelayed(timeoutRunnable, 30000)
+
+                                viewModel.updateUserData(
+                                    editedUserData,
+                                    onSuccess = {
+                                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                                        isSaving = false
+                                        isEditing = false
+                                        Toast.makeText(context, "Modifiche salvate con successo!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onFailure = { exception ->
+                                        timeoutHandler.removeCallbacks(timeoutRunnable)
+                                        isSaving = false
+                                        Toast.makeText(context, "Errore nel salvare le modifiche: ${exception.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                )
                             },
-                            onFailure = { exception ->
-                                timeoutHandler.removeCallbacks(timeoutRunnable)
-                                isSaving = false
-                                Toast.makeText(context, "Errore nel salvare le modifiche: ${exception.message}", Toast.LENGTH_LONG).show()
+                            modifier = Modifier.weight(1f),
+                            enabled = isEditing && !isSaving,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4CAF50)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Save,
+                                    contentDescription = "Salva",
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
                             }
-                        )
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = isEditing && !isSaving
-                ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
+                            Text(if (isSaving) "Salvataggio..." else "Salva", color = Color.White)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                editedUserData = userData
+                                isEditing = false
+                            },
+                            modifier = Modifier.weight(1f),
+                            enabled = isEditing && !isSaving,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF283593)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = "Annulla",
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text("Annulla")
+                        }
+                    }
+                }
+
+                item {
+                    Button(
+                        onClick = {
+                            viewModel.logout()
+                            Toast.makeText(context, "Logout effettuato", Toast.LENGTH_SHORT).show()
+                            navController.navigate("home") {
+                                popUpTo(navController.graph.startDestinationId) {
+                                    inclusive = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF283593)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Save,
-                            contentDescription = "Salva",
+                            imageVector = Icons.Default.ExitToApp,
+                            contentDescription = "Logout",
                             modifier = Modifier.padding(end = 8.dp)
                         )
+                        Text("Logout", color = Color.White)
                     }
-                    Text(if (isSaving) "Salvataggio..." else "Salva")
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        editedUserData = userData
-                        isEditing = false
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = isEditing && !isSaving
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Cancel,
-                        contentDescription = "Annulla",
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text("Annulla")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Pulsante Logout
-            Button(
-                onClick = {
-                    viewModel.logout()
-                    Toast.makeText(context, "Logout effettuato", Toast.LENGTH_SHORT).show()
-                    navController.navigate("home") {
-                        popUpTo(navController.graph.startDestinationId) {
-                            inclusive = false
+                item {
+                    Button(
+                        onClick = { showDeleteDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE53935)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !isSaving && !isDeleting
+                    ) {
+                        if (isDeleting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Eliminazione...", color = Color.White)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Elimina Account",
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text("Elimina Account", color = Color.White)
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
-                ),
-                enabled = !isSaving && !isDeleting
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ExitToApp,
-                    contentDescription = "Logout",
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Text("Logout")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Pulsante Elimina Account
-            Button(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
-                ),
-                enabled = !isSaving && !isDeleting
-            ) {
-                if (isDeleting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onError
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Eliminazione...")
-                } else {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Elimina Account",
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    Text("Elimina Account")
                 }
             }
-
         } else {
-            // Utente non autenticato
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = "Effettua l'accesso",
-                    style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                Button(
-                    onClick = { navController.navigate("login") },
-                    modifier = Modifier.fillMaxWidth()
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
-                    Text("Accedi")
-                }
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = "Account",
+                            modifier = Modifier.size(80.dp),
+                            tint = Color(0xFF283593)
+                        )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                OutlinedButton(
-                    onClick = { navController.navigate("register") },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Registrati")
+                        Text(
+                            text = "Effettua l'accesso",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = Color(0xFF283593)
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Button(
+                            onClick = { navController.navigate("login") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF283593)
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Accedi", color = Color.White)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedButton(
+                            onClick = { navController.navigate("register") },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color(0xFF283593)
+                            )
+                        ) {
+                            Text("Registrati")
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Dialog per conferma eliminazione account
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = {
                 Text(
                     text = "Elimina Account",
-                    color = MaterialTheme.colorScheme.error
+                    color = Color(0xFFE53935)
                 )
             },
             text = {
@@ -604,7 +685,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                         showDeleteDialog = false
                         isDeleting = true
 
-                        // Timeout dopo 30 secondi
                         val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
                         val timeoutRunnable = Runnable {
                             if (isDeleting) {
@@ -638,7 +718,7 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                         )
                     },
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+                        contentColor = Color(0xFFE53935)
                     )
                 ) {
                     Text("Elimina")
@@ -654,7 +734,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         )
     }
 
-    // Dialog per riautenticazione
     if (showReauthDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -676,12 +755,16 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                         label = { Text("Password") },
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         isError = passwordError.isNotEmpty(),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF283593),
+                            focusedLabelColor = Color(0xFF283593)
+                        )
                     )
                     if (passwordError.isNotEmpty()) {
                         Text(
                             text = passwordError,
-                            color = MaterialTheme.colorScheme.error,
+                            color = Color(0xFFE53935),
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 4.dp)
                         )
@@ -699,7 +782,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                         showReauthDialog = false
                         isDeleting = true
 
-                        // Timeout dopo 30 secondi
                         val timeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
                         val timeoutRunnable = Runnable {
                             if (isDeleting) {
@@ -740,7 +822,7 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
                         )
                     },
                     colors = ButtonDefaults.textButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+                        contentColor = Color(0xFFE53935)
                     )
                 ) {
                     Text("Conferma")
@@ -760,7 +842,6 @@ fun ProfileScreen(navController: NavController, viewModel: AuthViewModel) {
         )
     }
 
-    // Dialog per selezione immagine
     if (showImagePicker) {
         AlertDialog(
             onDismissRequest = { showImagePicker = false },
